@@ -1,0 +1,29 @@
+Debug/main.cpp.o: /home/ozgur/DSSE/IM-DSSE/IM-DSSE/main.cpp Client_DSSE.h \
+ MasterKey.h config.h DSSE_Hashmap_Key_Class.h struct_MatrixType.h \
+ /home/ozgur/DSSE/IM-DSSE/IM-DSSE/Server_DSSE.h zmq.hpp \
+ /home/ozgur/DSSE/IM-DSSE/IM-DSSE/DSSE.h \
+ /home/ozgur/DSSE/IM-DSSE/IM-DSSE/struct_MatrixType.h \
+ /home/ozgur/DSSE/IM-DSSE/IM-DSSE/struct_SearchToken.h \
+ /home/ozgur/DSSE/IM-DSSE/IM-DSSE/config.h
+
+Client_DSSE.h:
+
+MasterKey.h:
+
+config.h:
+
+DSSE_Hashmap_Key_Class.h:
+
+struct_MatrixType.h:
+
+/home/ozgur/DSSE/IM-DSSE/IM-DSSE/Server_DSSE.h:
+
+zmq.hpp:
+
+/home/ozgur/DSSE/IM-DSSE/IM-DSSE/DSSE.h:
+
+/home/ozgur/DSSE/IM-DSSE/IM-DSSE/struct_MatrixType.h:
+
+/home/ozgur/DSSE/IM-DSSE/IM-DSSE/struct_SearchToken.h:
+
+/home/ozgur/DSSE/IM-DSSE/IM-DSSE/config.h:
