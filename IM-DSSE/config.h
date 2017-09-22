@@ -4,7 +4,7 @@
 
 #define INTEL_AES_NI                        // Intel AES-NI library
 
-#define VARIANT_I                           // 4 options: VARIANT_MAIN, VARIANT_I, VARIANT_II, VARIANT_III
+#define ENCRYPT_BLOCK_SIZE 1
 #define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
 //#define SEND_SEARCH_FILE_INDEX              // Search result contains specific file indexes
 
@@ -56,25 +56,6 @@ const std::string SERVER_PORT = "5555";
 
 const std::string seed = "12345678";             //random seed
 
-
-
-#if defined(VARIANT_MAIN)
-    #define ENCRYPT_BLOCK_SIZE 1              // Variant I in bit and should be either 1,2,4 or divisable by 8 and not larger than 128
-    
-#elif defined(VARIANT_I) 
-    #define ENCRYPT_BLOCK_SIZE 128              // Variant I in bit and should be either 1,2,4 or divisable by 8 and not larger than 128
-    
-#elif defined(VARIANT_II)
-    #define DECRYPT_AT_CLIENT_SIDE            
-
-    #define ENCRYPT_BLOCK_SIZE 1              // Variant I in bit and should be either 1,2,4 or divisable by 8 and not larger than 128
- 
-#elif defined(VARIANT_III)
-    #define DECRYPT_AT_CLIENT_SIDE             
-
-    #define ENCRYPT_BLOCK_SIZE 128              // Variant I in bit and should be either 1,2,4 or divisable by 8 and not larger than 128
- 
-#endif
 
 static const string gcsDataStructureFilepath = "../data/state/";
 static const string gcsMatrixPiecePath = "../data/EIDX/";

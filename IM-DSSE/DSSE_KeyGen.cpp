@@ -226,21 +226,14 @@ int DSSE_KeyGen::precomputeAES_CTR_keys(unsigned char* key,
             aes128_ctr_encdec(U, V, &pregenRow_keys[row*BLOCK_CIPHER_SIZE], uchar_counter, ONE_VALUE);                
             
             i = row * ENCRYPT_BLOCK_SIZE / BYTE_SIZE;
-            if(ENCRYPT_BLOCK_SIZE<BYTE_SIZE)
-            {
-                bit_position = row * ENCRYPT_BLOCK_SIZE % BYTE_SIZE;
-                for(int bit_number =0 ; bit_number<ENCRYPT_BLOCK_SIZE;bit_number++)
-                {
-                    if(BIT_CHECK(&V[0],bit_number))
-                        BIT_SET(&key[i],(bit_position+bit_number));
-                    else
-                        BIT_CLEAR(&key[i],(bit_position+bit_number));
-                }
-            }
-            else
-            {
-                memcpy(&key[i],V,ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            }
+			bit_position = row * ENCRYPT_BLOCK_SIZE % BYTE_SIZE;
+			for(int bit_number =0 ; bit_number<ENCRYPT_BLOCK_SIZE;bit_number++)
+			{
+				if(BIT_CHECK(&V[0],bit_number))
+					BIT_SET(&key[i],(bit_position+bit_number));
+				else
+					BIT_CLEAR(&key[i],(bit_position+bit_number));
+			}
         }
     }
     else //key for search
@@ -256,21 +249,14 @@ int DSSE_KeyGen::precomputeAES_CTR_keys(unsigned char* key,
             
             i = block_index * ENCRYPT_BLOCK_SIZE / BYTE_SIZE;
                 
-            if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-            {
-                bit_position = (block_index * ENCRYPT_BLOCK_SIZE) % BYTE_SIZE;
-                for(int bit_number = 0 ; bit_number < ENCRYPT_BLOCK_SIZE; bit_number++)
-                {
-                    if(BIT_CHECK(&V[0],bit_number))
-                        BIT_SET(&key[i],(bit_position+bit_number));
-                    else
-                        BIT_CLEAR(&key[i],(bit_position+bit_number));
-                }
-            }
-            else
-            {
-                memcpy(&key[i],V,ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            }
+			bit_position = (block_index * ENCRYPT_BLOCK_SIZE) % BYTE_SIZE;
+			for(int bit_number = 0 ; bit_number < ENCRYPT_BLOCK_SIZE; bit_number++)
+			{
+				if(BIT_CHECK(&V[0],bit_number))
+					BIT_SET(&key[i],(bit_position+bit_number));
+				else
+					BIT_CLEAR(&key[i],(bit_position+bit_number));
+			}
         }
     }
     return 0;

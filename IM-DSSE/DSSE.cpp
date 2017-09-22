@@ -144,13 +144,9 @@ int DSSE::setupData_structure(
 		printf("OK!\n");
         auto end = time_now;
         cout<<"BUILDING TIME: "<<std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count()<<" ms"<<endl;
-    #if !defined(DECRYPT_AT_CLIENT_SIDE)
         printf("   1.2. Creating block state matrix...");
         this->createBlock_state_matrix_files();
         printf("OK!\n");
-    #endif
-    
-            
 	}
     catch(exception &e)
     {
@@ -291,24 +287,14 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
         for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
         {
             col = index / BYTE_SIZE;
-            if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-            {
-                bit_number = index % BYTE_SIZE;
-                for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
-                {
-                    if(BIT_CHECK(&I[row][col].byte_data,bit_number))
-                        BIT_SET(&V[0],ii);
-                    else
-                        BIT_CLEAR(&V[0],ii);
-                }
-            }
-            else
-            {
-                for(jj = col,ii=0; ii<ENCRYPT_BLOCK_SIZE/BYTE_SIZE;jj++, ii++)
-                {
-                    V[ii] = I[row][jj].byte_data;
-                }
-            }
+			bit_number = index % BYTE_SIZE;
+			for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+			{
+				if(BIT_CHECK(&I[row][col].byte_data,bit_number))
+					BIT_SET(&V[0],ii);
+				else
+					BIT_CLEAR(&V[0],ii);
+			}
             memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
             memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_idx],sizeof(TYPE_COUNTER));
             memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
@@ -324,23 +310,13 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
                 need_reencrypt = true;
             }
             
-            if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE) 
-            {
-                 for(ii=0; ii< ENCRYPT_BLOCK_SIZE;ii++)
-                {
-                    if(BIT_CHECK(&U[0],ii))
-                        rFileIDs.push_back((index+ii));
-                }
-            }
-            else
-            {
-                for(ii=0; ii<ENCRYPT_BLOCK_SIZE/BYTE_SIZE; ii++)
-                {
-                    for(bit_number = 0 ; bit_number<BYTE_SIZE; bit_number++)
-                        if(BIT_CHECK(&U[ii],bit_number))
-                            rFileIDs.push_back(index+ii*BYTE_SIZE+bit_number);
-                }
-            }
+            
+			for(ii=0; ii< ENCRYPT_BLOCK_SIZE;ii++)
+			{
+				if(BIT_CHECK(&U[0],ii))
+					rFileIDs.push_back((index+ii));
+			}
+            
            
             /* Set the state bit of this block to 0 */
             BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
@@ -354,24 +330,14 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
                     
                 aes128_ctr_encdec(U, V, pSearchToken.row_key, uchar_counter, ONE_VALUE);
             
-                if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE) // block size < byte size
-                {
-                    bit_number = index % BYTE_SIZE;
-                    for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
-                    {
-                        if(BIT_CHECK(&V[0],ii))
-                            BIT_SET(&I[row][col].byte_data,bit_number);
-                        else
-                            BIT_CLEAR(&I[row][col].byte_data,bit_number);
-                    }
-                }
-                else
-                {
-                    for(jj = col,ii=0; ii<ENCRYPT_BLOCK_SIZE/BYTE_SIZE;jj++, ii++)
-                    {
-                        I[row][jj].byte_data = V[ii];
-                    }
-                }
+                bit_number = index % BYTE_SIZE;
+				for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+				{
+					if(BIT_CHECK(&V[0],ii))
+						BIT_SET(&I[row][col].byte_data,bit_number);
+					else
+						BIT_CLEAR(&I[row][col].byte_data,bit_number);
+				}
             }
         }
 		file_list.clear();
@@ -504,136 +470,35 @@ int DSSE::addToken(     string new_adding_file_with_path,
         bit_position = file_index % BYTE_SIZE;
         TYPE_COUNTER next_counter = pBlockCounterArray[block_index] + 1;
         
-        
-        if(ENCRYPT_BLOCK_SIZE>1) //decrypt the received I' to update the new data representation I_bar to I'
-        {
-            /*
-             * 1.(a-c)Decrypt the whole data block I' to be I_bar using block key and the corresponding row key 
-             * */
-            for(I_bar_idx = 0 , idx = 0, size = MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE;idx < size; idx+=ENCRYPT_BLOCK_SIZE, I_bar_idx++)
-            {
-                row = idx / ENCRYPT_BLOCK_SIZE;
-                I_bar_row = I_bar_idx / BYTE_SIZE;
-                I_bar_bit_position = I_bar_idx % BYTE_SIZE;
-                // *****************  FIX THE ERROR OF VARIANT 1 SHOWN IN THE SAC 2015 **********************
-                // if the counter > 1 and the row has not been updated right before, generate the old row key to decrypt it
-                if(pKeywordCounterArray[row]>1 && pBlockStateArray[row]==ZERO_VALUE)
-                {
-                    keyword_counter = pKeywordCounterArray[row]-1;
-                }
-                else
-                {
-                    keyword_counter = pKeywordCounterArray[row];
-                }
-                memset(row_key_input,0,sizeof(row_key_input));
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-                
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_index],sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-                {
-                    for(bit_position = idx % BYTE_SIZE,col=idx/BYTE_SIZE,ii=0 ; ii < ENCRYPT_BLOCK_SIZE;ii++,bit_position++)
-                    {
-                        if(BIT_CHECK(&I_prime[col].byte_data,bit_position))
-                            BIT_SET(&U[0],ii);
-                        else
-                            BIT_CLEAR(&U[0],ii);
-                    }
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    
-                    bit_position = file_index % ENCRYPT_BLOCK_SIZE;
-        
-                    if(BIT_CHECK(&I_bar[I_bar_row].byte_data,I_bar_bit_position))
-                        BIT_SET(&V[0],bit_position);
-                    else
-                        BIT_CLEAR(&V[0],bit_position);
-                }
-                else
-                {
-                    for(ii = 0 ; ii <ENCRYPT_BLOCK_SIZE/BYTE_SIZE;ii++)
-                        U[ii] = I_prime[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data;
-                     
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    
-                    //Update decrypted I_prime (V) by I_bar
-                    ii = (file_index % ENCRYPT_BLOCK_SIZE) / BYTE_SIZE; 
-                    bit_position = file_index % BYTE_SIZE;
-                    
-                    if(BIT_CHECK(&I_bar[I_bar_row].byte_data,I_bar_bit_position))
-                        BIT_SET(&V[ii],bit_position);
-                    else
-                        BIT_CLEAR(&V[ii],bit_position);
-                }
-                //Re-encrypt V to U with new key and new counter
-                if(pKeywordCounterArray[row]>1 && pBlockStateArray[row]==ZERO_VALUE)
-                {
-                    keyword_counter = pKeywordCounterArray[row];
-                    memset(row_key_input,0,sizeof(row_key_input));
-                    memcpy(row_key_input,&row,sizeof(row));
-                    memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-                    dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                    
-                }
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                aes128_ctr_encdec(V, U, row_key, uchar_counter, ONE_VALUE);
-                
-                // put U back to I_prime
-                if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-                {
-                    for(bit_position = idx % BYTE_SIZE, col=idx/BYTE_SIZE, ii=0 ; ii < ENCRYPT_BLOCK_SIZE;ii++,bit_position++)
-                    {
-                        if(BIT_CHECK(&U[0],ii))
-                            BIT_SET(&I_prime[col].byte_data,bit_position);
-                        else
-                            BIT_CLEAR(&I_prime[col].byte_data,bit_position);
-                    }
-                }
-                else
-                {
-                    for(ii = 0 ; ii <ENCRYPT_BLOCK_SIZE/BYTE_SIZE;ii++)
-                             I_prime[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data = U[ii];
-                }
-            }
-        }
-        else
-        {
-            for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
-            {
-                keyword_counter = pKeywordCounterArray[row];
-                memset(row_key_input,0,sizeof(row_key_input));
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
+       
+		for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
+		{
+			keyword_counter = pKeywordCounterArray[row];
+			memset(row_key_input,0,sizeof(row_key_input));
+			memcpy(row_key_input,&row,sizeof(row));
+			memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
 
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                I_bar_row = row / BYTE_SIZE;
-                I_bar_bit_position = row % BYTE_SIZE;
-                if(BIT_CHECK(&I_bar[I_bar_row].byte_data,I_bar_bit_position))
-                    BIT_SET(&U[0],0);
-                else
-                    BIT_CLEAR(&U[0],0);
+			dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
+			
+			memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
+			memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
+			memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
+			
+			I_bar_row = row / BYTE_SIZE;
+			I_bar_bit_position = row % BYTE_SIZE;
+			if(BIT_CHECK(&I_bar[I_bar_row].byte_data,I_bar_bit_position))
+				BIT_SET(&U[0],0);
+			else
+				BIT_CLEAR(&U[0],0);
 
-                aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                
-                if(BIT_CHECK(&V[0],0))
-                    BIT_SET(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
-                else
-                    BIT_CLEAR(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
-            }
-            memcpy(I_prime,I_bar,MATRIX_ROW_SIZE/BYTE_SIZE);
-        }
+			aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
+			
+			if(BIT_CHECK(&V[0],0))
+				BIT_SET(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
+			else
+				BIT_CLEAR(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
+		}
+		memcpy(I_prime,I_bar,MATRIX_ROW_SIZE/BYTE_SIZE);
     }
     catch(exception &e)
     {
@@ -649,137 +514,6 @@ int DSSE::addToken(     string new_adding_file_with_path,
    
     return 0;
 }
-
-/**
- * Function Name: addToken
- *
- * Description:
- * Update block data for adding file using precomputed keys 
- * (This function is used when the DECRYPT_AT_CLIENT_SIDE macro is enabled)
- *
- * @param new_adding_file_with_path: (input) full filename and path of the adding file
- * @param I_prime: (output) block_data after adding the file
- * @param file_index: (output) index of adding file in the DSSE data structure
- * @param rT_F: (input) file hash table
- * @param rT_W: (input) keyword hash table
- * @param extracted_keyword: (output) uniques keyword being extracted from adding file
- * @param pKeywordCounterArray: (input) Keyword counters
- * @param decrypt_key_arr: (input)keys used to decrypt input data
- * @param reencrypt_key_arr: (input) keys used to re-encrypt updated data
- * @param lstFree_column_idx: list of free column indexes not assigned to any files
- * @param lstFree_row_idx: list of free row indexes not assigned to any keywords
- * @param pKey: (input) symmetric key generated by genMasterKey()
- * @return	0 if successful
- */
-int DSSE::addToken(     string new_adding_file_with_path,
-                        MatrixType* I_prime,
-                        TYPE_INDEX &file_index, 
-                        TYPE_GOOGLE_DENSE_HASH_MAP &rT_F,
-                        TYPE_GOOGLE_DENSE_HASH_MAP &rT_W,
-                        TYPE_KEYWORD_DICTIONARY &extracted_keywords,
-                        unsigned char* decrypt_key_arr,
-                        unsigned char* reencrypt_key_arr,
-                        vector<TYPE_INDEX> &lstFree_column_idx,
-                        vector<TYPE_INDEX> &lstFree_row_idx,
-                        MasterKey* pKey)
-{
-    DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
-    DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen(); 
-    Miscellaneous misc;
-    int bit_position;
-    TYPE_INDEX keyword_index;
-    TYPE_INDEX row;
-    unsigned char file_trapdoor[TRAPDOOR_SIZE];
-    unsigned char keyword_trapdoor[TRAPDOOR_SIZE];
-    
-    TYPE_INDEX selectedIdx;
-    KeywordExtraction* kw_ex = new KeywordExtraction();
-    set<string>::iterator iter;
-    MatrixType* I_bar;
-    MatrixType* decrypted_block ;
-
-
-    try
-    {   
-        decrypted_block = new MatrixType[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
-        
-        I_bar= new MatrixType [MATRIX_ROW_SIZE/BYTE_SIZE];
-        memset(I_bar,0,MATRIX_ROW_SIZE/BYTE_SIZE);
-        
-        dsse_trapdoor->generateTrapdoor_single_input(file_trapdoor, TRAPDOOR_SIZE,	
-                                    (unsigned char *)new_adding_file_with_path.c_str(), 
-                                    new_adding_file_with_path.size(), pKey);
-                                    
-        hashmap_key_class hmap_file_trapdoor(file_trapdoor,TRAPDOOR_SIZE);
-        if(rT_F[hmap_file_trapdoor]==NULL)
-        {
-            this->pickRandom_element(selectedIdx,lstFree_column_idx,&prng);
-            rT_F[hmap_file_trapdoor] = selectedIdx;
-        }
-        
-        /* Extract unique keywords */
-        kw_ex->extractKeywords(extracted_keywords, new_adding_file_with_path, "");
-        
-        for(iter=extracted_keywords.begin();iter != extracted_keywords.end();iter++) 
-        {
-            string word = *iter;
-            int keyword_len = word.size();
-
-            if(keyword_len>0)
-            {
-                dsse_trapdoor->generateTrapdoor_single_input(keyword_trapdoor, TRAPDOOR_SIZE, 
-                                        (unsigned char *)word.c_str(), keyword_len, pKey);
-            }
-            hashmap_key_class hmap_keyword_trapdoor(keyword_trapdoor, TRAPDOOR_SIZE);
-            if(rT_W[hmap_keyword_trapdoor]==NULL)
-            {
-                this->pickRandom_element(selectedIdx,lstFree_row_idx,&prng);
-                rT_W[hmap_keyword_trapdoor] = selectedIdx;
-            }
-            keyword_index = rT_W[hmap_keyword_trapdoor];
-            row = keyword_index / BYTE_SIZE;
-            bit_position = keyword_index %BYTE_SIZE;
-
-            BIT_SET(&I_bar[row].byte_data,bit_position);
-            
-            word.clear();
-        }
-        file_index = rT_F[hmap_file_trapdoor];
-        
-        if(ENCRYPT_BLOCK_SIZE > 1)
-        {
-            //decrypt the input block first
-            memset(decrypted_block,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            dsse_keygen->enc_dec_preAESKey(decrypted_block,I_prime,decrypt_key_arr,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-        
-            //update the decrypted block with newly adding file block
-            this->updateBlock(I_bar,decrypted_block,file_index);
-        
-            //reencrypt the updated blocks with reenncryption key
-            dsse_keygen->enc_dec_preAESKey(I_prime,decrypted_block,reencrypt_key_arr,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-        }
-        else
-        {
-            dsse_keygen->enc_dec_preAESKey(I_prime,I_bar,reencrypt_key_arr,MATRIX_ROW_SIZE/BYTE_SIZE);
-        }
-    }
-    catch(exception &e)
-    {
-        printf("Error!!\n");
-        exit(1);
-    }
-
-
-    // free memory
-    delete dsse_trapdoor;
-    delete kw_ex;
-    delete dsse_keygen;
-    delete decrypted_block;
-    delete I_bar;
-   
-    return 0;
-}
-
 
 
 /**
@@ -855,128 +589,33 @@ DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
         lstFree_column_idx.push_back(file_index);
         rT_F.erase(hmap_file_trapdoor);
         
-        if(ENCRYPT_BLOCK_SIZE>1) //decrypt the received I' to update the new data representation I_bar to I'
-        {
-            /* Decrypt the whole data block I' to be I_bar using block key and the corresponding row key  */
-            for(I_bar_idx = 0 , idx = 0, size = MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE;idx < size; idx+=ENCRYPT_BLOCK_SIZE, I_bar_idx++)
-            {
-                row = idx / ENCRYPT_BLOCK_SIZE;
-                I_bar_row = I_bar_idx / BYTE_SIZE;
-                I_bar_bit_position = I_bar_idx % BYTE_SIZE;
-                // *****************  FIX THE ERROR OF VARIANT 1 SHOWN IN THE SAC 2015 **********************
-                // if the counter > 1 and the row has not been updated right before, generate the old row key to decrypt it
-                if(pKeywordCounterArray[row]>1 && pBlockStateArray[row]==ZERO_VALUE)
-                {
-                    keyword_counter = pKeywordCounterArray[row]-1; // rk_stream = input of G_k3 ( i || st_i )
-                }
-                else
-                {
-                    keyword_counter = pKeywordCounterArray[row];
-                }
-                memset(row_key_input,0,sizeof(row_key_input));
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_index],sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-                {
-                    for(bit_position = idx % BYTE_SIZE,col=idx/BYTE_SIZE,ii=0 ; ii < ENCRYPT_BLOCK_SIZE;ii++,bit_position++)
-                    {
-                        if(BIT_CHECK(&I_prime[col].byte_data,bit_position))
-                            BIT_SET(&U[0],ii);
-                        else
-                            BIT_CLEAR(&U[0],ii);
-                    }
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    
-                    //Update decrypted I_prime (V) by 0
-                    bit_position = file_index % ENCRYPT_BLOCK_SIZE;
-                    BIT_CLEAR(&V[0],bit_position);
-                }
-                else
-                {
-                    for(ii = 0 ; ii <ENCRYPT_BLOCK_SIZE/BYTE_SIZE;ii++)
-                        U[ii] = I_prime[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data;
-                     
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    
-                    //Update decrypted I_prime (V) by 0
-                    ii = (file_index % ENCRYPT_BLOCK_SIZE) / BYTE_SIZE; 
-                    bit_position = file_index % BYTE_SIZE;
-                    
-                    BIT_CLEAR(&V[ii],bit_position);
-                }
-                //Re-encrypt V to U with new key and new counter
-                if(pKeywordCounterArray[row]>1 && pBlockStateArray[row]==ZERO_VALUE)
-                {
-                    keyword_counter = pKeywordCounterArray[row];
-                    memset(row_key_input,0,sizeof(row_key_input));
-                    memcpy(row_key_input,&row,sizeof(row));
-                    memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-                    
-                    dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                    
-                }
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                aes128_ctr_encdec(V, U, row_key, uchar_counter, ONE_VALUE);
-                
-                // put U back to I_prime
-                if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-                {
-                    //write the decrypted V back 
-                    for(bit_position = idx % BYTE_SIZE, col=idx/BYTE_SIZE, ii=0 ; ii < ENCRYPT_BLOCK_SIZE;ii++,bit_position++)
-                    {
-                        if(BIT_CHECK(&U[0],ii))
-                            BIT_SET(&I_prime[col].byte_data,bit_position);
-                        else
-                            BIT_CLEAR(&I_prime[col].byte_data,bit_position);
-                    }
-                }
-                else
-                {
-                    for(ii = 0 ; ii <ENCRYPT_BLOCK_SIZE/BYTE_SIZE;ii++)
-                             I_prime[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data = U[ii];
-                }
-            }
-        }
-        else
-        {
-            for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
-            {
-                keyword_counter = pKeywordCounterArray[row];
-                memset(row_key_input,0,sizeof(row_key_input));
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
-                
-                I_bar_row = row / BYTE_SIZE;
-                I_bar_bit_position = row % BYTE_SIZE;
-                
-                BIT_CLEAR(&U[0],0);
-                //encrypt
-                aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                
-                if(BIT_CHECK(&V[0],0))
-                    BIT_SET(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
-                else
-                    BIT_CLEAR(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
-            }
-            memcpy(I_prime,I_bar,MATRIX_ROW_SIZE/BYTE_SIZE);
-            
-        }
         
-    }
+		for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
+		{
+			keyword_counter = pKeywordCounterArray[row];
+			memset(row_key_input,0,sizeof(row_key_input));
+			memcpy(row_key_input,&row,sizeof(row));
+			memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
+			dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
+			
+			memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
+			memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&next_counter,sizeof(TYPE_COUNTER));
+			memcpy(&uchar_counter,&block_index,sizeof(TYPE_INDEX));
+			
+			I_bar_row = row / BYTE_SIZE;
+			I_bar_bit_position = row % BYTE_SIZE;
+			
+			BIT_CLEAR(&U[0],0);
+			//encrypt
+			aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
+			
+			if(BIT_CHECK(&V[0],0))
+				BIT_SET(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
+			else
+				BIT_CLEAR(&I_bar[I_bar_row].byte_data,I_bar_bit_position);
+		}
+		memcpy(I_prime,I_bar,MATRIX_ROW_SIZE/BYTE_SIZE);
+	}
     catch(exception &e)
     {
 		printf("Error!!\n");
@@ -992,95 +631,6 @@ DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
     return 0;    
 }
 
-/**
- * Function Name: delToken
- *
- * Description:
- * Update block data for deleting file
- * (This function is used when the DECRYPT_AT_CLIENT_SIDE macro is enabled)
- *
- * @param del_file_with_path: (input) full filename and path of the deleting file
- * @param I_prime: (output) block_data after deleting the file
- * @param file_index: (output) index of deleting file in the DSSE data structure
- * @param rT_F: (input) file hash table
- * @param rT_W: (input) keyword hash table
- * @param decrypt_key_arr: (input)keys used to decrypt input data
- * @param reencrypt_key_arr: (input) keys used to re-encrypt updated data
- * @param lstFree_column_idx: list of free column indexes not assigned to any files
- * @param lstFree_row_idx: list of free row indexes not assigned to any keywords
- * @param pKey: (input) symmetric key generated by genMasterKey()
- * @return	0 if successful
- */
-int DSSE::delToken(string del_file_with_path,
-                MatrixType* I_prime,
-                TYPE_INDEX &file_index,
-                TYPE_GOOGLE_DENSE_HASH_MAP &rT_F,
-                TYPE_GOOGLE_DENSE_HASH_MAP &rT_W,
-                unsigned char* decrypt_key_arr,
-                unsigned char* reencrypt_key_arr,
-                vector<TYPE_INDEX> &lstFree_column_idx,
-                vector<TYPE_INDEX> &lstFree_row_idx,
-                MasterKey* pKey)
-{
-    DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
-    Miscellaneous misc;
-    DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen();
-    unsigned char file_trapdoor[TRAPDOOR_SIZE];
-    MatrixType* decrypted_block;
-    MatrixType* I_bar;
-    try
-    {
-        
-        I_bar= new MatrixType [MATRIX_ROW_SIZE/BYTE_SIZE];
-        memset(I_bar,0,MATRIX_ROW_SIZE/BYTE_SIZE);
-        
-        dsse_trapdoor->generateTrapdoor_single_input(file_trapdoor, TRAPDOOR_SIZE,	
-                                    (unsigned char *)del_file_with_path.c_str(), 
-                                    del_file_with_path.size(), pKey);
-                                    
-        hashmap_key_class hmap_file_trapdoor(file_trapdoor,TRAPDOOR_SIZE);
-        
-        file_index = rT_F[hmap_file_trapdoor];
-
-        
-        /* Remove the file trapdoor entry from the file hashmap */
-        lstFree_column_idx.push_back(file_index);
-        rT_F.erase(hmap_file_trapdoor);
-        
-        
-        if(ENCRYPT_BLOCK_SIZE > 1)
-        {
-                //decrypt the input block first
-            decrypted_block = new MatrixType[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
-            memset(decrypted_block,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            dsse_keygen->enc_dec_preAESKey(decrypted_block,I_prime,decrypt_key_arr,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            
-            //update the decrypted block with 0-block
-            this->updateBlock(I_bar,decrypted_block,file_index);
-        
-            //reencrypt the updated blocks with reenncryption key
-            dsse_keygen->enc_dec_preAESKey(I_prime,decrypted_block,reencrypt_key_arr,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-            delete decrypted_block;
-        }
-        else
-        {
-            //reencrypt the updated blocks with reenncryption key
-            dsse_keygen->enc_dec_preAESKey(I_prime,I_bar,reencrypt_key_arr,MATRIX_ROW_SIZE/BYTE_SIZE);
-        }
-    }
-    catch(exception &e)
-    {
-		printf("Error!!\n");
-        exit(1);
-    }
-
-    // free memory
-    delete dsse_trapdoor;
-    delete I_bar;
-    delete dsse_keygen;
-   
-    return 0;    
-}
 
 
 /**
@@ -1111,58 +661,18 @@ int DSSE::update(MatrixType* I_prime,
     TYPE_INDEX bit_number;
     try
     {
-    
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            if(ENCRYPT_BLOCK_SIZE>BYTE_SIZE)
-            {
-                begin = block_idx*ENCRYPT_BLOCK_SIZE/BYTE_SIZE;
-                end = block_idx*ENCRYPT_BLOCK_SIZE/BYTE_SIZE + ENCRYPT_BLOCK_SIZE / BYTE_SIZE;
-                idx = 0;
-                for (row=0;row<MATRIX_ROW_SIZE; row++)
-                {
-                    for(col = begin; col < end; col++,idx++)
-                    {
-                        I[row][col].byte_data = I_prime[idx].byte_data;
-                    }
-                }
-            }
-            else
-            {
-                col = block_idx*ENCRYPT_BLOCK_SIZE /BYTE_SIZE;
-                bit_position = (block_idx*ENCRYPT_BLOCK_SIZE)%BYTE_SIZE;
-                idx = 0;
-                for (row=0;row<MATRIX_ROW_SIZE; row++)
-                {
-                    for(bit_number = bit_position ;bit_number< bit_position + ENCRYPT_BLOCK_SIZE; bit_number++,idx++)
-                    {
-                        I_prime_col_idx = idx / BYTE_SIZE;
-                        I_prime_bit_idx = idx % BYTE_SIZE;
-                        if(BIT_CHECK(&I_prime[I_prime_col_idx].byte_data,I_prime_bit_idx))
-                            BIT_SET(&I[row][col].byte_data,bit_number);
-                        else
-                            BIT_CLEAR(&I[row][col].byte_data,bit_number);
-                    }
-                }
-                
-            }
-        }
-        else
-        {
-            col = block_idx / (BYTE_SIZE);
-            bit_position = block_idx % BYTE_SIZE;
-            for (row=0,idx=0;row<MATRIX_ROW_SIZE; row++,idx++)
-            {
-                I_prime_bit_idx = idx % BYTE_SIZE;
-                I_prime_col_idx = idx / BYTE_SIZE;
-                if(BIT_CHECK(&I_prime[I_prime_col_idx].byte_data,I_prime_bit_idx))
-                    BIT_SET(&I[row][col].byte_data,bit_position);
-                else
-                    BIT_CLEAR(&I[row][col].byte_data,bit_position);
-            }
-        }
+		col = block_idx / (BYTE_SIZE);
+		bit_position = block_idx % BYTE_SIZE;
+		for (row=0,idx=0;row<MATRIX_ROW_SIZE; row++,idx++)
+		{
+			I_prime_bit_idx = idx % BYTE_SIZE;
+			I_prime_col_idx = idx / BYTE_SIZE;
+			if(BIT_CHECK(&I_prime[I_prime_col_idx].byte_data,I_prime_bit_idx))
+				BIT_SET(&I[row][col].byte_data,bit_position);
+			else
+				BIT_CLEAR(&I[row][col].byte_data,bit_position);
+		}
         /* Iset the counter of this block to+1, set the state of the block to 1.*/
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
         if(pBlockCounterArray!=NULL)
             pBlockCounterArray[block_idx] += 1;
         if(pBlockStateMatrix !=NULL)
@@ -1174,7 +684,6 @@ int DSSE::update(MatrixType* I_prime,
                 BIT_SET(&pBlockStateMatrix[row][col].byte_data,bit);
             }
         }
-#endif
     }
     catch(exception & e)
     {
@@ -1208,43 +717,8 @@ int DSSE::updateBlock(  MatrixType* updating_block,
     TYPE_INDEX row,col;
     TYPE_INDEX idx,ii,size;
     TYPE_INDEX I_bar_idx, I_bar_row,I_bar_bit_position;
-    if(ENCRYPT_BLOCK_SIZE>1)
-    {
-        for(I_bar_idx = 0 , idx = 0, size = MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE;idx < size; idx+=ENCRYPT_BLOCK_SIZE, I_bar_idx++)
-        {
-            col=idx/BYTE_SIZE;
-            row = idx / ENCRYPT_BLOCK_SIZE;
-            I_bar_row = I_bar_idx / BYTE_SIZE;
-            I_bar_bit_position = I_bar_idx % BYTE_SIZE;
-            
-            if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE)
-            {
-                bit_position = (idx % BYTE_SIZE) + (update_idx % ENCRYPT_BLOCK_SIZE);
-    
-                if(BIT_CHECK(&updating_block[I_bar_row].byte_data,I_bar_bit_position))
-                    BIT_SET(&input_block[col].byte_data,bit_position);
-                else
-                    BIT_CLEAR(&input_block[col].byte_data,bit_position);
-            }
-            else
-            {
-                //Update decrypted I_prime (V) by I_bar
-                ii = (update_idx % ENCRYPT_BLOCK_SIZE) / BYTE_SIZE; 
-                bit_position = update_idx % BYTE_SIZE;
-                
-                if(BIT_CHECK(&updating_block[I_bar_row].byte_data,I_bar_bit_position))
-                    BIT_SET(&input_block[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data,bit_position);
-                else
-                    BIT_CLEAR(&input_block[row*(ENCRYPT_BLOCK_SIZE/BYTE_SIZE)+ii].byte_data,bit_position);
-            }
-        }
-    }
-    else
-    {
-        memcpy(input_block,updating_block,MATRIX_ROW_SIZE/BYTE_SIZE);
-        
-    }
-    return 0;
+	memcpy(input_block,updating_block,MATRIX_ROW_SIZE/BYTE_SIZE);
+	return 0;
 }
 
 
@@ -1666,79 +1140,42 @@ int DSSE::createEncrypted_matrix_from_kw_file_pair(vector<vector<TYPE_INDEX>> &k
                 }
             }
         }
-        // encrypt block by block, there are two options:
-        if(ENCRYPT_BLOCK_SIZE < BYTE_SIZE) // block size < byte size
-        {
-            for(row = 0 ; row < MATRIX_ROW_SIZE ; row++)
-            {
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&row_counter_arr[row],sizeof(row_counter_arr[row]));
-                
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                block_idx = (MATRIX_PIECE_COL_SIZE*BYTE_SIZE/ENCRYPT_BLOCK_SIZE)*i; 
-                for(jj = 0; jj < MATRIX_PIECE_COL_SIZE*BYTE_SIZE; jj+=ENCRYPT_BLOCK_SIZE,block_idx++)
-                {
-                    col = jj / BYTE_SIZE;
-                    for(ii=0, bit_number = jj % BYTE_SIZE ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
-                    {
-                        if(BIT_CHECK(&I[row][col].byte_data,bit_number))
-                            BIT_SET(&U[0],ii);
-                        else
-                            BIT_CLEAR(&U[0],ii);
-                    }
-                    memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                    memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&block_counter_arr[block_idx],sizeof(TYPE_COUNTER));
-                    memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
-                    // Encrypting the  matrix I using AES CTR 128 function
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    // Write the encryped row back to matrix I
-                    for(ii=0,bit_number = jj % BYTE_SIZE ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
-                    {
-                    
-                        if(BIT_CHECK(&V[0],ii))
-                            BIT_SET(&I[row][col].byte_data,bit_number);
-                        else
-                            BIT_CLEAR(&I[row][col].byte_data,bit_number);
-                    }
-                }
-            }
-        }
-        else // encrypt block size > byte_size
-        {
-            if(ENCRYPT_BLOCK_SIZE % BYTE_SIZE != 0)
-            {
-                printf("Invalid block size, it should be divisible by 8 and not larger than 128");
-                exit(1);
-            }
-            
-            for(row = 0 ; row < MATRIX_ROW_SIZE ; row++)
-            {
-                memcpy(row_key_input,&row,sizeof(row));
-                memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&row_counter_arr[row],sizeof(row_counter_arr[row]));
-                
-                dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-                
-                block_idx = (MATRIX_PIECE_COL_SIZE*BYTE_SIZE/ENCRYPT_BLOCK_SIZE)*i;
-                for(col = 0; col < MATRIX_PIECE_COL_SIZE; col+=(ENCRYPT_BLOCK_SIZE/BYTE_SIZE),block_idx++)
-                {
-                    for(jj = col,ii=0; ii<ENCRYPT_BLOCK_SIZE/BYTE_SIZE;jj++, ii++)
-                    {
-                        U[ii] = I[row][jj].byte_data;
-                    }
-                    memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                    memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&block_counter_arr[block_idx],sizeof(TYPE_COUNTER));
-                    memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
-                    // Encrypting the  matrix I using AES CTR 128 function
-                    aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
-                    for(jj = col,ii=0; ii<ENCRYPT_BLOCK_SIZE/BYTE_SIZE;jj++, ii++)
-                    {
-                        I[row][jj].byte_data = V[ii];
-                    }
-               } 
-            }
-        }
-        //write the matrix to file by spliting it to smaller chunks
+ 
+		for(row = 0 ; row < MATRIX_ROW_SIZE ; row++)
+		{
+			memcpy(row_key_input,&row,sizeof(row));
+			memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&row_counter_arr[row],sizeof(row_counter_arr[row]));
+			
+			dsse_keygen->genRow_key(row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
+			
+			block_idx = (MATRIX_PIECE_COL_SIZE*BYTE_SIZE/ENCRYPT_BLOCK_SIZE)*i; 
+			for(jj = 0; jj < MATRIX_PIECE_COL_SIZE*BYTE_SIZE; jj+=ENCRYPT_BLOCK_SIZE,block_idx++)
+			{
+				col = jj / BYTE_SIZE;
+				for(ii=0, bit_number = jj % BYTE_SIZE ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+				{
+					if(BIT_CHECK(&I[row][col].byte_data,bit_number))
+						BIT_SET(&U[0],ii);
+					else
+						BIT_CLEAR(&U[0],ii);
+				}
+				memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
+				memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&block_counter_arr[block_idx],sizeof(TYPE_COUNTER));
+				memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
+				// Encrypting the  matrix I using AES CTR 128 function
+				aes128_ctr_encdec(U, V, row_key, uchar_counter, ONE_VALUE);
+				// Write the encryped row back to matrix I
+				for(ii=0,bit_number = jj % BYTE_SIZE ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+				{
+				
+					if(BIT_CHECK(&V[0],ii))
+						BIT_SET(&I[row][col].byte_data,bit_number);
+					else
+						BIT_CLEAR(&I[row][col].byte_data,bit_number);
+				}
+			}
+		}
+		//write the matrix to file by spliting it to smaller chunks
         for(TYPE_INDEX m = 0 ; m < MATRIX_ROW_SIZE ; m +=MATRIX_PIECE_ROW_SIZE)
         {
             string filename = misc.to_string(m) + "_" + misc.to_string(i*MATRIX_PIECE_COL_SIZE);
@@ -1993,39 +1430,24 @@ int DSSE::getBlock( TYPE_INDEX index,
             TYPE_INDEX I_prime_idx = 0;
             TYPE_INDEX begin;
             TYPE_INDEX end;
-            if(ENCRYPT_BLOCK_SIZE >= BYTE_SIZE)
-            {
-                begin = index * (ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-                end = begin + (ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-                
-                for(row = 0 ; row <MATRIX_ROW_SIZE; row++)
-                {
-                    for(col = begin; col < end;col++,I_prime_idx++)
-                    {
-                        I_prime[I_prime_idx].byte_data = I[row][col].byte_data;
-                    }
-                }
-            }
-            else
-            {
-                TYPE_INDEX I_bit_idx, I_prime_bit_idx;
-                col = (index*ENCRYPT_BLOCK_SIZE) / BYTE_SIZE;
-                begin = (index*ENCRYPT_BLOCK_SIZE) % BYTE_SIZE;
-                end = begin + ENCRYPT_BLOCK_SIZE;
-                for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
-                {  
-                    for(I_bit_idx = begin; I_bit_idx < end; I_bit_idx++,I_prime_idx++)
-                    {
-                        I_prime_col = I_prime_idx / BYTE_SIZE;
-                        I_prime_bit_idx = I_prime_idx % BYTE_SIZE;
-                        
-                        if(BIT_CHECK(&I[row][col].byte_data,I_bit_idx))
-                            BIT_SET(&I_prime[I_prime_col].byte_data,I_prime_bit_idx);
-                        else
-                            BIT_CLEAR(&I_prime[I_prime_col].byte_data,I_prime_bit_idx);
-                    }
-                }
-            }
+
+			TYPE_INDEX I_bit_idx, I_prime_bit_idx;
+			col = (index*ENCRYPT_BLOCK_SIZE) / BYTE_SIZE;
+			begin = (index*ENCRYPT_BLOCK_SIZE) % BYTE_SIZE;
+			end = begin + ENCRYPT_BLOCK_SIZE;
+			for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
+			{  
+				for(I_bit_idx = begin; I_bit_idx < end; I_bit_idx++,I_prime_idx++)
+				{
+					I_prime_col = I_prime_idx / BYTE_SIZE;
+					I_prime_bit_idx = I_prime_idx % BYTE_SIZE;
+					
+					if(BIT_CHECK(&I[row][col].byte_data,I_bit_idx))
+						BIT_SET(&I_prime[I_prime_col].byte_data,I_prime_bit_idx);
+					else
+						BIT_CLEAR(&I_prime[I_prime_col].byte_data,I_prime_bit_idx);
+				}
+			}
             
             
         }

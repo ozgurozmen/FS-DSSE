@@ -48,19 +48,11 @@ Client_DSSE::Client_DSSE()
 	}
     
     /* Allocate memory for I' & block state array */
-        I_prime = new MatrixType[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
-        memset(I_prime,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-        
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
-        block_state_arr = new bool[MATRIX_ROW_SIZE];
-        memset(block_state_arr,0,MATRIX_ROW_SIZE);
-#else
-        decrypt_key = new unsigned char[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
-        reencrypt_key = new unsigned char[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
-        memset(decrypt_key,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-        memset(reencrypt_key,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
-
-#endif
+	I_prime = new MatrixType[MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE];
+	memset(I_prime,0,MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE/BYTE_SIZE);
+	
+	block_state_arr = new bool[MATRIX_ROW_SIZE];
+	memset(block_state_arr,0,MATRIX_ROW_SIZE);
 }
 
 Client_DSSE::~Client_DSSE()
@@ -224,14 +216,6 @@ int Client_DSSE::loadState()
     cout<<"Size of list free column idx: "<<lstFree_column_idx.size()<<endl;
     cout<<"Size of list free row idx: "<<lstFree_row_idx.size()<<endl;
     
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    delete this->row_keys;
-    this->row_keys = new unsigned char[BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE];
-    memset(this->row_keys,0,BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE);
-    DSSE_KeyGen dsse_keygen;
-    dsse_keygen.pregenerateRow_keys(this->keyword_counter_arr,row_keys,this->masterKey);
-    
-#endif
     ready = true;
 }
 
@@ -360,9 +344,6 @@ int Client_DSSE::createEncrypted_data_structure()
 
     Miscellaneous misc;
 
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    DSSE_KeyGen* dsse_keygen  = new DSSE_KeyGen();
-#endif
     try
     {
         
@@ -392,13 +373,6 @@ int Client_DSSE::createEncrypted_data_structure()
         
         cout<<"Size of list free column idx: "<<lstFree_column_idx.size()<<endl;
         cout<<"Size of list free row idx: "<<lstFree_row_idx.size()<<endl;
-    
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    this->row_keys = new unsigned char[BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE];
-    memset(this->row_keys,0,BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE);
-    dsse_keygen->pregenerateRow_keys(this->keyword_counter_arr,row_keys,this->masterKey);
-    
-#endif
         
         printf("\n\n3. Saving state to disk...\n");
         saveState();
@@ -414,9 +388,6 @@ int Client_DSSE::createEncrypted_data_structure()
     }
     ready = true;
     
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    delete dsse_keygen;
-#endif
     files_input.clear();
     delete dsse;
     return 0;
@@ -471,7 +442,6 @@ int Client_DSSE::sendEncryptedIndex()
             }
         }
         printf("OK!\n");
-    #if !defined(DECRYPT_AT_CLIENT_SIDE) 
         printf("1. Sending State Matrix I.st...");
         n = NUM_BLOCKS/BYTE_SIZE/BLOCK_STATE_PIECE_COL_SIZE;
         for(int i = 0 ; i < n ; i++)
@@ -485,9 +455,7 @@ int Client_DSSE::sendEncryptedIndex()
         printf("OK!\n");
         printf("3. Sending block counter...");
         this->sendFile(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
-        printf("OK!!\n");
-    #endif
-        
+        printf("OK!!\n");        
     }
     else
     {
@@ -528,10 +496,6 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
     Miscellaneous misc;
     
 #endif
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    
-    DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen();
-#endif
     try
     {
         if(ready == false)
@@ -557,8 +521,6 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
             return 0;
         }
         
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
-
         //increase counter to 1
         this->keyword_counter_arr[tau.row_index]+=1;
         
@@ -580,7 +542,7 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
         socket.send(buffer_out,sizeof(SearchToken));
         
         // Receive the result 
-      #if defined (SEND_SEARCH_FILE_INDEX)
+#if defined (SEND_SEARCH_FILE_INDEX)
         // open the file to receive first
         if((foutput = fopen(filename_search_result.c_str(),"wb+"))==NULL)
         {
@@ -607,55 +569,14 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
         }
         else
             res = lstFile_id.size();
-      #else
+#else
         memset(buffer_in,0,SOCKET_BUFFER_SIZE);
         socket.recv(buffer_in,SOCKET_BUFFER_SIZE);
         memcpy(&res,buffer_in,sizeof(res));
-      #endif
-        end = time_now;
-        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-       
-#else 
-
-        MatrixType *search_data = new MatrixType[MATRIX_COL_SIZE];
-        memset(search_data,0,MATRIX_COL_SIZE);
-        unsigned char* aes_keys = new unsigned char[MATRIX_COL_SIZE];
-        memset(aes_keys,0,MATRIX_COL_SIZE);
-
-    
-        THREAD_PRECOMPUTE_AESKEY aes_key_decrypt_param(aes_keys,tau.row_index,ROW,false,this->block_counter_arr,this->row_keys,this->masterKey);
-        pthread_create(&thread_precomputeAesKey_decrypt,NULL,&Client_DSSE::thread_precomputeAesKey_func,(void*)&aes_key_decrypt_param);
-        
-        THREAD_GETDATA get_data_param(tau.row_index,search_data);
-        pthread_create(&thread_getData,NULL,&Client_DSSE::thread_getSearchData_func,(void*)&get_data_param);
-        
-        pthread_join(thread_precomputeAesKey_decrypt, NULL);
-        pthread_join(thread_getData, NULL);
-      
-        MatrixType *search_res = new MatrixType[MATRIX_COL_SIZE];
-        memset(search_res,0,MATRIX_COL_SIZE);
-        
-        printf("2. Decrypting...");
-        start = time_now;
-        dsse_keygen->enc_dec_preAESKey(search_res,search_data,aes_keys,MATRIX_COL_SIZE);
-        end = time_now;
-        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-        
-        printf("3. Getting search result...");
-        start = time_now;
-        for(TYPE_INDEX ii=0; ii<MATRIX_COL_SIZE; ii++)
-        {
-                for(int bit_number = 0 ; bit_number<BYTE_SIZE; bit_number++)
-                    if(BIT_CHECK(&search_res[ii].byte_data,bit_number))
-                        lstFile_id.push_back(ii*BYTE_SIZE+bit_number);
-        }
-        res = lstFile_id.size();
-        end = time_now;
-        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-       
-        Miscellaneous::write_list_to_file(FILENAME_SEARCH_RESULT,gcsDataStructureFilepath,lstFile_id);
 #endif
-    
+        end = time_now;
+        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+       
     }
     catch (exception &ex)
     {
@@ -664,16 +585,10 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
     }
     memset(&tau,0,sizeof(SearchToken));
     delete dsse;
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
     socket.disconnect(PEER_ADDRESS);
     socket.close();
 #if defined(SEND_SEARCH_FILE_INDEX)
     filename_search_result.clear();
-#endif
-#endif
-
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    delete dsse_keygen;
 #endif
 
     return 0;
@@ -688,12 +603,8 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
     zmq::context_t context(1);
     zmq::socket_t socket(context,ZMQ_REQ);
     
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
     TYPE_INDEX serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE+(MATRIX_ROW_SIZE/BYTE_SIZE);
     TYPE_INDEX row,ii,state_col,state_bit_position;
-#else
-    TYPE_INDEX serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE;
-#endif    
     
     MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len]; //consist of data and block state
     
@@ -721,7 +632,6 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
         
         // Deserialize 
         memcpy(I_prime,serialized_buffer,(MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE);
-#if !defined (DECRYPT_AT_CLIENT_SIDE)
         for(row = 0,ii=(MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE) ; row < MATRIX_ROW_SIZE; ii++,row++)
         {
             state_col = ii / BYTE_SIZE;
@@ -731,7 +641,6 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
             else
                 block_state_arr[row] = ZERO_VALUE;
         }
-#endif
     }
     catch(exception &ex)
     {
@@ -826,13 +735,6 @@ int Client_DSSE::addFile(string filename, string path)
     
     stringstream new_filename_with_path;
     string s;
-    
-    
-    
-#if defined(DECRYPT_AT_CLIENT_SIDE)
-    DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen();
-   
-#endif
 
 auto start = time_now;
 auto end = time_now;
@@ -851,51 +753,8 @@ auto end = time_now;
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 
-
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-     
-        THREAD_PRECOMPUTE_AESKEY aes_key_decrypt_param(decrypt_key,block_index,COL,false, this->block_counter_arr,this->row_keys,this->masterKey);
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            pthread_create(&thread_precomputeAesKey_decrypt,NULL,&Client_DSSE::thread_precomputeAesKey_func,(void*)&aes_key_decrypt_param);
-        }        
-        
-        THREAD_PRECOMPUTE_AESKEY aes_key_reencrypt_param(reencrypt_key,block_index,COL,true, this->block_counter_arr,this->row_keys,this->masterKey);
-        pthread_create(&thread_precomputeAesKey_reencrypt,NULL,&Client_DSSE::thread_precomputeAesKey_func,(void*)&aes_key_reencrypt_param);
-     
-#endif
-    
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            printf("2. Getting block (& state) data from server...");
-    #if !defined(DECRYPT_AT_CLIENT_SIDE)
-            start = time_now;
-            this->requestBlock_data(block_index, this->I_prime,this->block_state_arr);
-            
-            end = time_now;
-            cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-
-    #else
-        THREAD_GETDATA get_data_param(block_index,this->I_prime);
-        pthread_create(&thread_getData,NULL,&Client_DSSE::thread_getUpdateData_func,(void*)&get_data_param);
-        
-    #endif
-        }
-    #if defined(DECRYPT_AT_CLIENT_SIDE) 
-        
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            pthread_join(thread_precomputeAesKey_decrypt, NULL);
-            pthread_join(thread_getData, NULL);
-        }
-        pthread_join(thread_precomputeAesKey_reencrypt, NULL);
-        
-   
-    #endif
-
         printf("3. Peforming AddToken...");
 start = time_now;
-#if !defined(DECRYPT_AT_CLIENT_SIDE)
         extracted_keywords.clear();
         dsse->addToken( adding_filename_with_path,           
                         this->I_prime,
@@ -904,11 +763,6 @@ start = time_now;
                         this->keyword_counter_arr,this->block_counter_arr,this->block_state_arr,
                         this->lstFree_column_idx,this->lstFree_row_idx,
                         this->masterKey);
-#else
-        dsse->addToken(adding_filename_with_path,this->I_prime,
-                        file_index,this->T_F,this->T_W,extracted_keywords,decrypt_key,reencrypt_key,
-                        this->lstFree_column_idx,this->lstFree_row_idx,this->masterKey);        
-#endif
         //increase the counter
         this->block_counter_arr[block_index] += 1;
         
@@ -936,11 +790,6 @@ end = time_now;
     extracted_keywords.clear();
 
     delete dsse;
-
-
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-    delete dsse_keygen;
-#endif
     return 0;
 }
 
@@ -976,9 +825,7 @@ int Client_DSSE::delFile(string filename, string path)
     zmq::context_t context(1);
     zmq::socket_t socket(context,ZMQ_REQ);
 
-#if defined(DECRYPT_AT_CLIENT_SIDE)
-    DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen();
-#endif
+
 auto start = time_now;
 auto end = time_now;
     try
@@ -995,50 +842,9 @@ auto end = time_now;
         
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-    
-#if defined (DECRYPT_AT_CLIENT_SIDE)
-        //precompute AES keys
-        THREAD_PRECOMPUTE_AESKEY aes_key_decrypt_param(decrypt_key,block_index,COL,false, this->block_counter_arr,this->row_keys,this->masterKey);
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            pthread_create(&thread_precomputeAesKey_decrypt,NULL,&Client_DSSE::thread_precomputeAesKey_func,(void*)&aes_key_decrypt_param);
-        }
 
-        THREAD_PRECOMPUTE_AESKEY aes_key_reencrypt_param(reencrypt_key,block_index,COL, true, this->block_counter_arr,this->row_keys,this->masterKey);
-        pthread_create(&thread_precomputeAesKey_reencrypt,NULL,&Client_DSSE::thread_precomputeAesKey_func,(void*)&aes_key_reencrypt_param);
-     
-    
-#endif
-
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            printf("2. Getting block (& state) data from server...");
-     
-    #if !defined(DECRYPT_AT_CLIENT_SIDE)
-            start = time_now;
-            this->requestBlock_data(block_index, this->I_prime, this->block_state_arr);
-            end = time_now;
-            cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-    #else
-            THREAD_GETDATA get_data_param(block_index,this->I_prime);
-            pthread_create(&thread_getData,NULL,&Client_DSSE::thread_getUpdateData_func,(void*)&get_data_param);
-    #endif
-        }
-    #if defined(DECRYPT_AT_CLIENT_SIDE) 
-        if(ENCRYPT_BLOCK_SIZE>1)
-        {
-            pthread_join(thread_precomputeAesKey_decrypt, NULL);
-            pthread_join( thread_getData, NULL);
-            
-        }
-        pthread_join(thread_precomputeAesKey_reencrypt, NULL);
-        
-    #endif
-    
-   
         printf("3. Peforming DelToken...");
         start = time_now;
-    #if !defined(DECRYPT_AT_CLIENT_SIDE)
         dsse->delToken( deleting_filename_with_path,                   
                         this->I_prime,                    
                         file_index,
@@ -1046,13 +852,6 @@ auto end = time_now;
                         this->keyword_counter_arr,this->block_counter_arr,this->block_state_arr,
                         this->lstFree_column_idx,this->lstFree_row_idx,
                         this->masterKey);
-    #else
-        dsse->delToken(deleting_filename_with_path,
-                        this->I_prime,file_index,this->T_F,this->T_W,
-                        decrypt_key,reencrypt_key,
-                        this->lstFree_column_idx, this->lstFree_row_idx,
-                        this->masterKey);
-    #endif
          //increase the counter
          cout<<"block index: "<<endl;
         this->block_counter_arr[block_index] += 1;
@@ -1077,10 +876,6 @@ cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<"
     memset(buffer_out,0,SOCKET_BUFFER_SIZE);
     encrypted_filename.clear();
 
-
-#if defined(DECRYPT_AT_CLIENT_SIDE)
-    delete dsse_keygen;
-#endif
     delete dsse;
     return 0;
 }
