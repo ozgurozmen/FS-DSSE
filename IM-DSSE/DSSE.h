@@ -68,7 +68,9 @@ public:
                 SEARCH_TOKEN pSearchToken, 
                 MatrixType **I,
                 TYPE_COUNTER *pBlockCounterArray,
-                MatrixType **pBlockStateMatrix);
+                MatrixType **pBlockStateMatrix,
+				string *D,
+				TYPE_INDEX realRow);
                 
     int requestBlock_index(string adding_filename_with_pad,
                             TYPE_INDEX &block_index,

@@ -505,9 +505,9 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
             return 0;
         }
         printf("\n\n Searching \"%s\" ....\n\n", keyword.c_str());
-        start = time_now;
         /*Generate the token for this keyword using SrchToken procedure*/        
         printf("1. Generating keyword token...");
+        start = time_now;
         dsse->searchToken(  tau,
                             keyword,
                             this->T_W,
@@ -522,6 +522,8 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
         }
         
         //increase counter to 1
+		//Ozgur DO NOT increase the counter by 1
+		//Ozgur In the search token algorithm, only generate the last key with last counter.
         this->keyword_counter_arr[tau.row_index]+=1;
         
         
@@ -830,9 +832,9 @@ auto start = time_now;
 auto end = time_now;
     try
     {
-         if(ready == false)
+		if(ready == false)
         {
-            printf("Encrypted index is not constructe yet, please build it first!\n");
+            printf("Encrypted index is not constructed yet, please build it first!\n");
             return 0;
         }
         

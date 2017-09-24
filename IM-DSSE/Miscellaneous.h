@@ -44,7 +44,8 @@ public:
     static int read_array_from_file(string filename, string path, TYPE_COUNTER* arr, TYPE_COUNTER size);
     static int write_array_to_file(string filename, string path, bool* arr, TYPE_COUNTER size);
     static int read_array_from_file(string filename, string path, bool* arr, TYPE_COUNTER size);
-    
+    static int write_array_to_file(string filename, string path, string* arr, TYPE_COUNTER size);
+    static int read_array_from_file(string filename, string path, string* arr, TYPE_COUNTER size);
     
     static int write_counter_to_file(string filename, string path, TYPE_COUNTER n);
     static int read_counter_from_file(string filename, string path, TYPE_COUNTER &n);

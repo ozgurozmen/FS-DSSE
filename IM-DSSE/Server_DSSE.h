@@ -15,7 +15,7 @@ private:
     // Encrypted index
     MatrixType** I;
 	
-
+	string* D;
     TYPE_COUNTER* block_counter_arr;
     MatrixType** block_state_mat;
 

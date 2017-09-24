@@ -532,6 +532,36 @@ int Miscellaneous::read_array_from_file(string filename, string path, bool* arr,
     input.close();
     return 0;
 }
+//Ozgur
+int Miscellaneous::write_array_to_file(string filename, string path, string* arr, TYPE_INDEX size)
+{
+    std::ofstream output;
+	TYPE_INDEX i;
+    
+	output.open(path+filename);
+	for(i = 0; i < size; i++)
+    {
+        output << arr[i] << " ";
+    }
+
+	output.close();
+    
+    return 0;
+}
+int Miscellaneous::read_array_from_file(string filename, string path, string* arr, TYPE_INDEX size)
+{
+    ifstream input;
+    TYPE_INDEX i;
+    input.open(path+filename);
+    
+    for(i = 0 ; i < size;i++)
+    {
+        input>> arr[i];
+    }
+	
+    input.close();
+    return 0;
+}
 int Miscellaneous::write_counter_to_file(string filename, string path, TYPE_COUNTER n)
 {
     std::ofstream output;

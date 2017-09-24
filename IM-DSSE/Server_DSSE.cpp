@@ -21,7 +21,11 @@ Server_DSSE::Server_DSSE()
     block_counter_arr = new TYPE_COUNTER[NUM_BLOCKS];
     for(int i = 0 ; i < NUM_BLOCKS; i++)
         block_counter_arr[i]=1;
-
+	
+	D = new string[MATRIX_ROW_SIZE];
+	for(int i = 0 ; i < MATRIX_ROW_SIZE; i++)
+        D[i]="";
+		
 #if !defined(DISK_STORAGE_MODE)
         this->I = new MatrixType *[MATRIX_ROW_SIZE];
         for (i = 0; i < MATRIX_ROW_SIZE;i++ )
@@ -132,6 +136,8 @@ int Server_DSSE::start()
     return 0;
 }
 
+
+//OZGUR-UPDATE LOAD STATE AND SAVE STATE FUNCTIONS TO SAVE D String Matrix!!!!!!!!!!!
 /**
  * Function Name: loadState()
  *
@@ -157,6 +163,10 @@ int Server_DSSE::loadState()
 #endif
     printf("   Loading block counter array...");
     Miscellaneous::read_array_from_file(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,this->block_counter_arr,NUM_BLOCKS);
+    printf("OK!\n");
+	
+	printf("   Loading File Index Set...");
+    Miscellaneous::read_array_from_file(FILENAME_SEARCH_INDEX_ARRAY,gcsSearchIndexFilepath,this->D,NUM_BLOCKS);
     printf("OK!\n");
 
 }
@@ -189,9 +199,13 @@ int Server_DSSE::saveState()
     Miscellaneous::write_array_to_file(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,this->block_counter_arr,NUM_BLOCKS);
     printf("OK!\n");
 
-
+	printf("   Saving File Index Set...");
+    Miscellaneous::write_array_to_file(FILENAME_SEARCH_INDEX_ARRAY,gcsSearchIndexFilepath,this->D,NUM_BLOCKS);
+    printf("OK!\n");
     
 }
+
+// OZGUR UPDATE FUNCTION IN SERVER
 /**
  * Function Name: updateBlock_data
  *
@@ -205,7 +219,7 @@ int Server_DSSE::updateBlock_data(zmq::socket_t& socket)
 {
     auto start = time_now;
     auto end = time_now;
-   Miscellaneous misc;
+    Miscellaneous misc;
     DSSE *dsse = new DSSE();
     
     unsigned char buffer_in[SOCKET_BUFFER_SIZE] = {'\0'};
@@ -521,7 +535,8 @@ auto end = time_now;
     
     if(dsse->search(lstFile_id,tau,this->I_search,
                         this->block_counter_arr,
-                        this->block_state_mat_search)!=0)
+                        this->block_state_mat_search,
+						this->D,tmp)!=0)
     {
         printf("Error!!\n");
         exit(1);
@@ -529,7 +544,7 @@ auto end = time_now;
     
 #else
     if(dsse->search( lstFile_id,tau,this->I,
-                    this->block_counter_arr,this->block_state_mat))
+                    this->block_counter_arr,this->block_state_mat,this->D,tau.row_index))
     {
         printf("Error!!\n");
         exit(1);

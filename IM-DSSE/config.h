@@ -5,7 +5,7 @@
 #define INTEL_AES_NI                        // Intel AES-NI library
 
 #define ENCRYPT_BLOCK_SIZE 1
-#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
+//#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
 //#define SEND_SEARCH_FILE_INDEX              // Search result contains specific file indexes
 
 #define PEER_ADDRESS "tcp://localhost:5555"
@@ -58,6 +58,7 @@ const std::string seed = "12345678";             //random seed
 
 
 static const string gcsDataStructureFilepath = "../data/state/";
+static const string gcsSearchIndexFilepath = "../data/searchIDX/";
 static const string gcsMatrixPiecePath = "../data/EIDX/";
 
 
@@ -110,6 +111,7 @@ using namespace boost::algorithm;
 //define the default filename of some data structures in DSSE scheme
 #define FILENAME_BLOCK_STATE_MATRIX     "block_state_mat"
 #define FILENAME_BLOCK_COUNTER_ARRAY     "block_counter_arr"
+#define FILENAME_SEARCH_INDEX_ARRAY     "search_index_arr"
 #define FILENAME_KEYWORD_COUNTER_ARRAY     "keyword_counter_arr"
 #define FILENAME_TOTAL_KEYWORDS_FILES     "keywords_files"
 #define FILENAME_SEARCH_RESULT          "search_result"

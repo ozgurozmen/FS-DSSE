@@ -210,6 +210,7 @@ int DSSE::searchToken(SEARCH_TOKEN &pSearchToken,
 
         dsse_keygen->genRow_key(pSearchToken.row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
         
+		//Ozgur I think we do not need these.
         if(pKeywordCounterArray[pSearchToken.row_index]>1)
         {
 
@@ -257,7 +258,9 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
                     SEARCH_TOKEN pSearchToken,
                     MatrixType **I,
                     TYPE_COUNTER *pBlockCounterArray,
-                    MatrixType **pBlockStateMatrix)
+                    MatrixType **pBlockStateMatrix,
+					string *D,
+					TYPE_INDEX realRow)
 {
 	TYPE_INDEX row = 0, col = 0;
     TYPE_INDEX index = 0;
@@ -268,7 +271,11 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
     unsigned char V[BLOCK_CIPHER_SIZE];
     Miscellaneous misc;
     bool need_reencrypt;
-    
+    string storedIndexes;
+	string change;
+	long long int ind;
+	std::size_t found;
+	
     TYPE_INDEX block_idx;
     int ii,jj;
     if( pSearchToken.row_index< 0)
@@ -283,63 +290,98 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 		
         /* Get the row index for the keyword being searched */
 		row = pSearchToken.row_index;
+		storedIndexes = D[realRow];
         /* Decrypt blocks */
-        for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
-        {
-            col = index / BYTE_SIZE;
-			bit_number = index % BYTE_SIZE;
-			for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+		
+		if(storedIndexes.length()==0){
+			for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
 			{
-				if(BIT_CHECK(&I[row][col].byte_data,bit_number))
-					BIT_SET(&V[0],ii);
-				else
-					BIT_CLEAR(&V[0],ii);
-			}
-            memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-            memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_idx],sizeof(TYPE_COUNTER));
-            memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
-                
-            if(pSearchToken.hasRow_key == false || BIT_CHECK(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE))
-            {
-                aes128_ctr_encdec(V, U, pSearchToken.row_key, uchar_counter, ONE_VALUE);
-                need_reencrypt = false;
-            }
-            else
-            {
-                aes128_ctr_encdec(V, U, pSearchToken.row_old_key, uchar_counter, ONE_VALUE);
-                need_reencrypt = true;
-            }
-            
-            
-			for(ii=0; ii< ENCRYPT_BLOCK_SIZE;ii++)
-			{
-				if(BIT_CHECK(&U[0],ii))
-					rFileIDs.push_back((index+ii));
-			}
+				col = index / BYTE_SIZE;
+				bit_number = index % BYTE_SIZE;
+				for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+				{
+					if(BIT_CHECK(&I[row][col].byte_data,bit_number))
+						BIT_SET(&V[0],ii);
+					else
+						BIT_CLEAR(&V[0],ii);
+				}
+				memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
+				memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_idx],sizeof(TYPE_COUNTER));
+				memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
+			
+				aes128_ctr_encdec(V, U, pSearchToken.row_key, uchar_counter, ONE_VALUE);
+				for(ii=0; ii< ENCRYPT_BLOCK_SIZE;ii++)
+				{
+					if(BIT_CHECK(&U[0],ii)){
+						rFileIDs.push_back((index+ii));
+						storedIndexes.append(std::to_string(index+ii));
+						storedIndexes.append(",");
+					}
+				}
             
            
             /* Set the state bit of this block to 0 */
-            BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
-            
-            /* Re-encrypt the block with the newest row key if the old row key is used to decrypt before */
-            if(need_reencrypt == true)
-            {
-                memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
-                memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_idx],sizeof(TYPE_COUNTER));
-                memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
-                    
-                aes128_ctr_encdec(U, V, pSearchToken.row_key, uchar_counter, ONE_VALUE);
-            
-                bit_number = index % BYTE_SIZE;
-				for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+				BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
+			}
+			//Ozgur - ENCRYPT!!! D
+			
+			
+			D[realRow] = storedIndexes;
+		}
+		else{
+			//Ozgur - Decrypt D
+			
+			
+			//Ozgur Write a for loop and if statement to check the state and update the string.
+			for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
+			{
+				if(BIT_CHECK(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE))
 				{
-					if(BIT_CHECK(&V[0],ii))
-						BIT_SET(&I[row][col].byte_data,bit_number);
-					else
-						BIT_CLEAR(&I[row][col].byte_data,bit_number);
+					col = index / BYTE_SIZE;
+					bit_number = index % BYTE_SIZE;
+					for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
+					{
+						if(BIT_CHECK(&I[row][col].byte_data,bit_number))
+							BIT_SET(&V[0],ii);
+						else
+							BIT_CLEAR(&V[0],ii);
+					}
+					memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
+					memcpy(&uchar_counter[BLOCK_CIPHER_SIZE/2],&pBlockCounterArray[block_idx],sizeof(TYPE_COUNTER));
+					memcpy(&uchar_counter,&block_idx,sizeof(TYPE_INDEX));
+				
+					aes128_ctr_encdec(V, U, pSearchToken.row_key, uchar_counter, ONE_VALUE);
+					for(ii=0; ii< ENCRYPT_BLOCK_SIZE;ii++)
+					{
+						change = ","+std::to_string(index+ii)+",";
+						found = storedIndexes.find(change);
+						if(BIT_CHECK(&U[0],ii)&&found==std::string::npos){
+							storedIndexes.append(std::to_string(index+ii));
+							storedIndexes.append(",");
+						}
+						if(!BIT_CHECK(&U[0],ii)&&found!=std::string::npos){
+							storedIndexes.erase(found, found+change.length());
+						}
+					}
 				}
-            }
-        }
+			}
+		
+			std::stringstream ss(storedIndexes);
+			while (ss >> ind)
+			{
+				rFileIDs.push_back(ind);
+	//			cout << ind;
+				if (ss.peek() == ',')
+					ss.ignore();
+			}	
+			
+			
+			
+			D[realRow] = storedIndexes;
+			//Ozgur RE-ENCRYPT D
+		}
+		
+		storedIndexes.clear();
 		file_list.clear();
 	}
     catch(exception &e)
@@ -347,7 +389,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
         printf("Error!!\n");
         exit(1);
     }
-
+	storedIndexes.clear();
 	file_list.clear();
 	memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
     memset(U,0,BLOCK_CIPHER_SIZE);
