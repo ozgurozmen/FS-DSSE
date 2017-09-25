@@ -524,7 +524,7 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
         //increase counter to 1
 		//Ozgur DO NOT increase the counter by 1
 		//Ozgur In the search token algorithm, only generate the last key with last counter.
-        this->keyword_counter_arr[tau.row_index]+=1;
+        //this->keyword_counter_arr[tau.row_index]+=1;
         
         
         start = time_now;
@@ -841,10 +841,9 @@ auto end = time_now;
         printf("1. Determining the block index...");
         start = time_now;
         dsse->requestBlock_index(deleting_filename_with_path,block_index,this->T_F,this->lstFree_column_idx,this->masterKey);
-        
+        // THERE IS A PROBLEM WITH DELETING DB FILES!!!!!!!!
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-
         printf("3. Peforming DelToken...");
         start = time_now;
         dsse->delToken( deleting_filename_with_path,                   

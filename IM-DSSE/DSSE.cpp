@@ -211,22 +211,6 @@ int DSSE::searchToken(SEARCH_TOKEN &pSearchToken,
         dsse_keygen->genRow_key(pSearchToken.row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
         
 		//Ozgur I think we do not need these.
-        if(pKeywordCounterArray[pSearchToken.row_index]>1)
-        {
-
-            keyword_counter = pKeywordCounterArray[pSearchToken.row_index] - 1 ;
-            memset(row_key_input,0,sizeof(row_key_input));
-            memcpy(row_key_input,&pSearchToken.row_index,sizeof(pSearchToken.row_index));
-            memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
-            dsse_keygen->genRow_key(pSearchToken.row_old_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
-            
-            pSearchToken.hasRow_key = true;
-        }
-        else
-        {
-            memset(pSearchToken.row_old_key,0,BLOCK_CIPHER_SIZE);
-            pSearchToken.hasRow_key = false;
-        }
     }
     catch(exception &e)
     {
@@ -337,6 +321,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 			{
 				if(BIT_CHECK(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE))
 				{
+
 					col = index / BYTE_SIZE;
 					bit_number = index % BYTE_SIZE;
 					for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
@@ -355,17 +340,18 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 					{
 						change = ","+std::to_string(index+ii)+",";
 						found = storedIndexes.find(change);
+
 						if(BIT_CHECK(&U[0],ii)&&found==std::string::npos){
 							storedIndexes.append(std::to_string(index+ii));
 							storedIndexes.append(",");
 						}
 						if(!BIT_CHECK(&U[0],ii)&&found!=std::string::npos){
-							storedIndexes.erase(found, found+change.length());
+							storedIndexes.erase(found+1, found+change.length());
 						}
 					}
+					BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
 				}
 			}
-		
 			std::stringstream ss(storedIndexes);
 			while (ss >> ind)
 			{
@@ -726,6 +712,8 @@ int DSSE::update(MatrixType* I_prime,
                 BIT_SET(&pBlockStateMatrix[row][col].byte_data,bit);
             }
         }
+		
+
     }
     catch(exception & e)
     {
@@ -793,6 +781,8 @@ int DSSE::requestBlock_index(   string adding_filename_with_pad,
                                     (unsigned char *)adding_filename_with_pad.c_str(), 
                                     adding_filename_with_pad.size(), pKey);
         hashmap_key_class hmap_file_trapdoor(file_trapdoor,TRAPDOOR_SIZE);
+		
+		//Ozgur This is for ADD files I guess!!
         if(rT_F[hmap_file_trapdoor] == NULL)
         {
             this->pickRandom_element(selectedIdx,lstFree_column_idx,&prng);
