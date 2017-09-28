@@ -536,7 +536,7 @@ auto end = time_now;
     if(dsse->search(lstFile_id,tau,this->I_search,
                         this->block_counter_arr,
                         this->block_state_mat_search,
-						this->D,tmp)!=0)
+						this->D,tmp,this->keyServer)!=0)
     {
         printf("Error!!\n");
         exit(1);
@@ -544,7 +544,7 @@ auto end = time_now;
     
 #else
     if(dsse->search( lstFile_id,tau,this->I,
-                    this->block_counter_arr,this->block_state_mat,this->D,tau.row_index))
+                    this->block_counter_arr,this->block_state_mat,this->D,tau.row_index,this->keyServer))
     {
         printf("Error!!\n");
         exit(1);

@@ -34,7 +34,9 @@ private:
 
     int pickRandom_element(TYPE_INDEX &randomIdx,vector<TYPE_INDEX> &setIdx,prng_state* prng);
     
+	
 
+	
 
 public:
     DSSE();
@@ -70,7 +72,8 @@ public:
                 TYPE_COUNTER *pBlockCounterArray,
                 MatrixType **pBlockStateMatrix,
 				string *D,
-				TYPE_INDEX realRow);
+				TYPE_INDEX realRow,
+				unsigned char *key);
                 
     int requestBlock_index(string adding_filename_with_pad,
                             TYPE_INDEX &block_index,

@@ -1,3 +1,10 @@
+TODO:
+
+1 - Make changes to the update functions, such as re-newing the row keys for updated files (to do this, request the state matrix from the server and also initialize the state matrix with all 1s)
+2 - Encrypt/Decrypt the string D
+3 - Store the keyword hash table at the server side and request and get it in search
+4 - Optimize the data type for D (OPTIONAL)
+
 # IM-DSSE
 Basic implementation of IM-DSSE. The full paper will be available soon. This project is built on CodeLite IDE (link: http://codelite.org). It is recommended to install CodeLite to load the full IM-DSSE workspace. 
 

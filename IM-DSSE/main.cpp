@@ -5,6 +5,8 @@
 #include <fstream>
 
 
+class createEncrypted_data_structure;
+class createEncrypted_data_structure;
 using namespace std;
 
 void printMenu();

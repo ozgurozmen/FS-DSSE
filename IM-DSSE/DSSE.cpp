@@ -9,6 +9,38 @@
 #include "climits"
 #include "Client_DSSE.h"
 #include "math.h"
+#include <thread>
+
+
+typedef struct thread_computation
+{
+    int startIdx;
+    int endIdx;
+    unsigned char* encrypted_data;
+    unsigned char* decrypted_data;
+    unsigned char* key;
+    
+    thread_computation()
+    {
+        
+    }
+    ~thread_computation()
+    {
+        
+    }
+    thread_computation(int startIdx, int endIdx, unsigned char* encrypted_data, unsigned char* decrypted_data, unsigned char* key)
+    {
+        this->startIdx = startIdx;
+        this->endIdx = endIdx;
+        this->encrypted_data = encrypted_data;
+        this->decrypted_data= decrypted_data;
+        this->key = key;
+    }
+    
+}THREAD_COMPUTATION;
+
+unsigned int nthreads = std::thread::hardware_concurrency();
+static void* thread_AES_CTR(void* args);
 DSSE::DSSE()
 {
     //register the PRNG with Fortuna
@@ -210,7 +242,6 @@ int DSSE::searchToken(SEARCH_TOKEN &pSearchToken,
 
         dsse_keygen->genRow_key(pSearchToken.row_key, BLOCK_CIPHER_SIZE, row_key_input, BLOCK_CIPHER_SIZE, pKey);
         
-		//Ozgur I think we do not need these.
     }
     catch(exception &e)
     {
@@ -244,7 +275,8 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
                     TYPE_COUNTER *pBlockCounterArray,
                     MatrixType **pBlockStateMatrix,
 					string *D,
-					TYPE_INDEX realRow)
+					TYPE_INDEX realRow,
+					unsigned char *key)
 {
 	TYPE_INDEX row = 0, col = 0;
     TYPE_INDEX index = 0;
@@ -254,12 +286,26 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
     unsigned char U[BLOCK_CIPHER_SIZE];
     unsigned char V[BLOCK_CIPHER_SIZE];
     Miscellaneous misc;
-    bool need_reencrypt;
+    bool need_reencrypt = 0;
     string storedIndexes;
+	string decryptedIndexes;
 	string change;
+	unsigned char temp[BLOCK_CIPHER_SIZE];
+	unsigned char input[BLOCK_CIPHER_SIZE];
+	unsigned char counter2[BLOCK_CIPHER_SIZE];
+	unsigned char *temp2;
+	unsigned char *temp3;
+	size_t size;
 	long long int ind;
 	std::size_t found;
+	unsigned char* encrypted_data;
+	unsigned char* decrypted_data;
 	
+	int selectedThreads = nthreads;
+    pthread_t* thread_compute = new pthread_t[selectedThreads];
+	THREAD_COMPUTATION* computeData_args = new THREAD_COMPUTATION[selectedThreads];
+	int startIdx = 0;
+	int endIdx, step;
     TYPE_INDEX block_idx;
     int ii,jj;
     if( pSearchToken.row_index< 0)
@@ -275,8 +321,9 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
         /* Get the row index for the keyword being searched */
 		row = pSearchToken.row_index;
 		storedIndexes = D[realRow];
+		//cout << "\nStored indexes\n";
+		//cout << storedIndexes;
         /* Decrypt blocks */
-		
 		if(storedIndexes.length()==0){
 			for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
 			{
@@ -307,21 +354,87 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
             /* Set the state bit of this block to 0 */
 				BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
 			}
-			//Ozgur - ENCRYPT!!! D
-			
-			
-			D[realRow] = storedIndexes;
+			need_reencrypt = 1;
+			size = 16*(ceil((double)storedIndexes.length()/(double)16));
 		}
 		else{
-			//Ozgur - Decrypt D
 			
+			//Decrypt storedIndexes to temp with key and save to storedIndexes
+			size = 16*(ceil((double)storedIndexes.length()/(double)16));
+			decryptedIndexes = "";
 			
+//			temp2 = new unsigned char[size];
+//			memset(temp2, '0', 16*(ceil(storedIndexes.length()/16)));
+//			memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+//			memset(counter2, '10', BLOCK_CIPHER_SIZE);
+			
+			step = 16*ceil((ceil((double)storedIndexes.length()/(double)16))/(double)selectedThreads);
+			//memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+			//memset(counter2, '10', BLOCK_CIPHER_SIZE);
+			encrypted_data = new unsigned char[size];
+			decrypted_data = new unsigned char[size];
+			memset(encrypted_data, '0', size);
+			memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+			for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
+			{
+				if(startIdx+step > size)
+					endIdx = size;
+				else
+					endIdx = startIdx+step;
+					
+				computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
+				pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
+            
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(i, &cpuset);
+				pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
+				
+				
+			}
+			for(int i  = 0 ; i < selectedThreads; i ++)
+			{
+				pthread_join(thread_compute[i],NULL);
+			}
+			
+			std::string s2(decrypted_data, decrypted_data + size);
+			string last = s2.substr(0, s2.rfind(",")+1);
+			decryptedIndexes.append(last);
+			
+//			for(int i = 0; i < ceil(storedIndexes.length()/16); i++){
+//				memcpy(temp, temp2 + 16*i, BLOCK_CIPHER_SIZE);
+//				//Extend This If Your Database is Huge
+//				counter2[0] = i & 0xFF;
+//				counter2[1] = (i>>8) & 0xFF;
+//				counter2[2] = (i>>16) & 0xFF;
+//				counter2[3] = (i>>24) & 0xFF;
+//				counter2[4] = (i>>32) & 0xFF;
+//				counter2[5] = (i>>40) & 0xFF;
+//				counter2[6] = (i>>48) & 0xFF;
+//				
+//				aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
+//				memset(counter2,0,BLOCK_CIPHER_SIZE);
+//				
+//				std::string s2(input, input + 16);
+//				if (i == ceil(storedIndexes.length()/16)-1){
+//					string last = s2.substr(0, s2.rfind(",")+1);
+//					decryptedIndexes.append(last);
+//				}
+//				else{
+//					decryptedIndexes.append(s2);
+//				}
+//				s2.clear();
+//				memset(temp,0,BLOCK_CIPHER_SIZE);
+//				memset(input,0,BLOCK_CIPHER_SIZE);
+//			}
+			
+			storedIndexes = decryptedIndexes;
+
 			//Ozgur Write a for loop and if statement to check the state and update the string.
 			for(index = 0, block_idx = 0; index < MAX_NUM_OF_FILES; index+=ENCRYPT_BLOCK_SIZE,block_idx++)
 			{
 				if(BIT_CHECK(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE))
 				{
-
 					col = index / BYTE_SIZE;
 					bit_number = index % BYTE_SIZE;
 					for(ii=0 ; ii< ENCRYPT_BLOCK_SIZE;ii++,bit_number++)
@@ -350,6 +463,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 						}
 					}
 					BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
+					need_reencrypt = 1;
 				}
 			}
 			std::stringstream ss(storedIndexes);
@@ -363,11 +477,80 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 			
 			
 			
-			D[realRow] = storedIndexes;
-			//Ozgur RE-ENCRYPT D
+			
+		}
+		//Ozgur ENCRYPT D
+		//D[realRow] = storedIndexes;
+		
+		
+		if(need_reencrypt){
+			//Encrypt storedIndexes to D[realRow] with key
+			D[realRow] = "";
+			//temp2 = new unsigned char[size];
+			//memset(temp2, '0', 16*(ceil(storedIndexes.length()/16)));
+			step = 16*ceil((ceil((double)storedIndexes.length()/(double)16))/(double)selectedThreads);
+			//memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+			//memset(counter2, '10', BLOCK_CIPHER_SIZE);
+			encrypted_data = new unsigned char[size];
+			decrypted_data = new unsigned char[size];
+			memset(encrypted_data, '0', size);
+			memset(decrypted_data, '0', size);
+			memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+			
+			for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
+			{
+				if(startIdx+step > size)
+					endIdx = size;
+				else
+					endIdx = startIdx+step;
+					
+				computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
+				pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
+            
+				cpu_set_t cpuset;
+				CPU_ZERO(&cpuset);
+				CPU_SET(i, &cpuset);
+				pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
+				
+				
+			}
+			
+			for(int i  = 0 ; i < selectedThreads; i ++)
+			{
+				pthread_join(thread_compute[i],NULL);
+			}
+//			cout << "\nAfter the threading\n";
+//			cout << decrypted_data;
+			std::string s(decrypted_data, decrypted_data + size);
+			D[realRow].append(s);
+//			for(int i = 0; i < ceil(storedIndexes.length()/16)+1; i++){
+//				memcpy(temp, temp2 + 16*i, BLOCK_CIPHER_SIZE);
+//				
+//				//Extend This If Your Database is Huge
+//				counter2[0] = i & 0xFF;
+//				counter2[1] = (i>>8) & 0xFF;
+//				counter2[2] = (i>>16) & 0xFF;
+//				counter2[3] = (i>>24) & 0xFF;
+//				counter2[4] = (i>>32) & 0xFF;
+//				counter2[5] = (i>>40) & 0xFF;
+//				counter2[6] = (i>>48) & 0xFF;
+//				
+//				aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
+//				memset(counter2,0,BLOCK_CIPHER_SIZE);
+//				std::string s(input, input + 16);
+//				D[realRow].append(s);
+//				
+//				s.clear();
+//				memset(temp,0,BLOCK_CIPHER_SIZE);
+//				memset(input,0,BLOCK_CIPHER_SIZE);
+//			}
+
+			
+			
 		}
 		
 		storedIndexes.clear();
+		decryptedIndexes.clear();
 		file_list.clear();
 	}
     catch(exception &e)
@@ -376,13 +559,39 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
         exit(1);
     }
 	storedIndexes.clear();
+	decryptedIndexes.clear();
 	file_list.clear();
 	memset(uchar_counter,0,BLOCK_CIPHER_SIZE);
     memset(U,0,BLOCK_CIPHER_SIZE);
     memset(V,0,BLOCK_CIPHER_SIZE);
-    
+	memset(counter2,0,BLOCK_CIPHER_SIZE);
 	return 0;
 }
+
+static void* thread_AES_CTR(void* args)
+{
+    THREAD_COMPUTATION* opt = (THREAD_COMPUTATION*) args;
+    static thread_local unsigned char counter2[BLOCK_CIPHER_SIZE];
+	memset(counter2, '10', BLOCK_CIPHER_SIZE);
+//    std::cout << " CPU # " << sched_getcpu() << "\n";
+//	std::cout << " Start Index =  " << opt->startIdx << "\n";
+//	std::cout << " End Index = " << opt->endIdx << "\n";
+	
+    for(int l = opt->startIdx ; l < opt->endIdx; l+=BLOCK_CIPHER_SIZE)
+    {
+		counter2[0] = l & 0xFF;
+		counter2[1] = (l>>8) & 0xFF;
+		counter2[2] = (l>>16) & 0xFF;
+		counter2[3] = (l>>24) & 0xFF;
+		counter2[4] = (l>>32) & 0xFF;
+		counter2[5] = (l>>40) & 0xFF;
+		counter2[6] = (l>>48) & 0xFF;
+        aes128_ctr_encdec(&opt->encrypted_data[l],&opt->decrypted_data[l],opt->key,counter2,ONE_VALUE);
+    }
+	//memset(counter2,0,BLOCK_CIPHER_SIZE);
+    pthread_exit((void*)opt);
+}
+
 
 /**
  * Function Name: addToken
