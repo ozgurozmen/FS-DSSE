@@ -295,6 +295,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 	unsigned char counter2[BLOCK_CIPHER_SIZE];
 	unsigned char *temp2;
 	unsigned char *temp3;
+	unsigned long long counter;
 	size_t size;
 	long long int ind;
 	std::size_t found;
@@ -355,78 +356,86 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 				BIT_CLEAR(&pBlockStateMatrix[row][block_idx/BYTE_SIZE].byte_data,block_idx%BYTE_SIZE);
 			}
 			need_reencrypt = 1;
-			size = 16*(ceil((double)storedIndexes.length()/(double)16));
+			size = BLOCK_CIPHER_SIZE*(ceil((double)storedIndexes.length()/(double)BLOCK_CIPHER_SIZE));
 		}
 		else{
 			
 			//Decrypt storedIndexes to temp with key and save to storedIndexes
-			size = 16*(ceil((double)storedIndexes.length()/(double)16));
+			size = BLOCK_CIPHER_SIZE*(ceil((double)storedIndexes.length()/(double)BLOCK_CIPHER_SIZE));
 			decryptedIndexes = "";
 			
-//			temp2 = new unsigned char[size];
-//			memset(temp2, '0', 16*(ceil(storedIndexes.length()/16)));
-//			memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
-//			memset(counter2, '10', BLOCK_CIPHER_SIZE);
 			
-			step = 16*ceil((ceil((double)storedIndexes.length()/(double)16))/(double)selectedThreads);
-			//memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
-			//memset(counter2, '10', BLOCK_CIPHER_SIZE);
-			encrypted_data = new unsigned char[size];
-			decrypted_data = new unsigned char[size];
-			memset(encrypted_data, '0', size);
-			memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
-			for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
-			{
-				if(startIdx+step > size)
-					endIdx = size;
-				else
-					endIdx = startIdx+step;
+			// DEFINE A BOOLEAN AFTER THIS POINT AND EITHER CREATE THREADS OR NOT!!!
+						
+			step = BLOCK_CIPHER_SIZE*ceil((ceil((double)storedIndexes.length()/(double)BLOCK_CIPHER_SIZE))/(double)selectedThreads);
+			
+			if(step*(nthreads-1)<size){
+			
+				encrypted_data = new unsigned char[size];
+				decrypted_data = new unsigned char[size];
+				memset(encrypted_data, '0', size);
+				memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
+				{
+					if(startIdx+step > size)
+						endIdx = size;
+					else
+						endIdx = startIdx+step;
+						
+					computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
+					pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
+				
+					cpu_set_t cpuset;
+					CPU_ZERO(&cpuset);
+					CPU_SET(i, &cpuset);
+					pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
 					
-				computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
-				pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
-            
-				cpu_set_t cpuset;
-				CPU_ZERO(&cpuset);
-				CPU_SET(i, &cpuset);
-				pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
+					
+				}
+				for(int i  = 0 ; i < selectedThreads; i ++)
+				{
+					pthread_join(thread_compute[i],NULL);
+				}
 				
+				std::string s2(decrypted_data, decrypted_data + size);
+				string last = s2.substr(0, s2.rfind(",")+1);
+				decryptedIndexes.append(last);
+			}
+			else{
+				
+				temp2 = new unsigned char[size];
+				memset(temp2, '0', BLOCK_CIPHER_SIZE*(ceil(storedIndexes.length()/BLOCK_CIPHER_SIZE)));
+				memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				memset(counter2, '0', BLOCK_CIPHER_SIZE);
+				
+				memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				counter = 0;
+				for(int i = 0; i < ceil(storedIndexes.length()/BLOCK_CIPHER_SIZE); i++){
+					memcpy(temp, temp2 + BLOCK_CIPHER_SIZE*i, BLOCK_CIPHER_SIZE);
+					//Extend This If Your Database is Huge
+
+					memcpy(counter2, &counter, sizeof(unsigned long long));
+					counter++;
+					
+					
+					aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
+					memset(counter2,'0',BLOCK_CIPHER_SIZE);
+					
+					std::string s2(input, input + BLOCK_CIPHER_SIZE);
+					if (i == ceil(storedIndexes.length()/BLOCK_CIPHER_SIZE)-1){
+						string last = s2.substr(0, s2.rfind(",")+1);
+						decryptedIndexes.append(last);
+					}
+					else{
+						decryptedIndexes.append(s2);
+					}
+					s2.clear();
+					memset(temp,0,BLOCK_CIPHER_SIZE);
+					memset(input,0,BLOCK_CIPHER_SIZE);
+				}
 				
 			}
-			for(int i  = 0 ; i < selectedThreads; i ++)
-			{
-				pthread_join(thread_compute[i],NULL);
-			}
-			
-			std::string s2(decrypted_data, decrypted_data + size);
-			string last = s2.substr(0, s2.rfind(",")+1);
-			decryptedIndexes.append(last);
-			
-//			for(int i = 0; i < ceil(storedIndexes.length()/16); i++){
-//				memcpy(temp, temp2 + 16*i, BLOCK_CIPHER_SIZE);
-//				//Extend This If Your Database is Huge
-//				counter2[0] = i & 0xFF;
-//				counter2[1] = (i>>8) & 0xFF;
-//				counter2[2] = (i>>16) & 0xFF;
-//				counter2[3] = (i>>24) & 0xFF;
-//				counter2[4] = (i>>32) & 0xFF;
-//				counter2[5] = (i>>40) & 0xFF;
-//				counter2[6] = (i>>48) & 0xFF;
-//				
-//				aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
-//				memset(counter2,0,BLOCK_CIPHER_SIZE);
-//				
-//				std::string s2(input, input + 16);
-//				if (i == ceil(storedIndexes.length()/16)-1){
-//					string last = s2.substr(0, s2.rfind(",")+1);
-//					decryptedIndexes.append(last);
-//				}
-//				else{
-//					decryptedIndexes.append(s2);
-//				}
-//				s2.clear();
-//				memset(temp,0,BLOCK_CIPHER_SIZE);
-//				memset(input,0,BLOCK_CIPHER_SIZE);
-//			}
+
 			
 			storedIndexes = decryptedIndexes;
 
@@ -486,67 +495,64 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 		if(need_reencrypt){
 			//Encrypt storedIndexes to D[realRow] with key
 			D[realRow] = "";
-			//temp2 = new unsigned char[size];
-			//memset(temp2, '0', 16*(ceil(storedIndexes.length()/16)));
+			
 			step = 16*ceil((ceil((double)storedIndexes.length()/(double)16))/(double)selectedThreads);
-			//memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
-			//memset(counter2, '10', BLOCK_CIPHER_SIZE);
-			encrypted_data = new unsigned char[size];
-			decrypted_data = new unsigned char[size];
-			memset(encrypted_data, '0', size);
-			memset(decrypted_data, '0', size);
-			memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
-			
-			for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
-			{
-				if(startIdx+step > size)
-					endIdx = size;
-				else
-					endIdx = startIdx+step;
+			if(step*7<size){
+				encrypted_data = new unsigned char[size];
+				decrypted_data = new unsigned char[size];
+				memset(encrypted_data, '0', size);
+				memset(decrypted_data, '0', size);
+				memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				
+				for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
+				{
+					if(startIdx+step > size)
+						endIdx = size;
+					else
+						endIdx = startIdx+step;
+						
+					computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
+					pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
+				
+					cpu_set_t cpuset;
+					CPU_ZERO(&cpuset);
+					CPU_SET(i, &cpuset);
+					pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
 					
-				computeData_args[i] = THREAD_COMPUTATION(startIdx,endIdx,encrypted_data,decrypted_data,key);	
-				pthread_create(&thread_compute[i], NULL, &thread_AES_CTR, (void*)&computeData_args[i]);
-            
-				cpu_set_t cpuset;
-				CPU_ZERO(&cpuset);
-				CPU_SET(i, &cpuset);
-				pthread_setaffinity_np(thread_compute[i], sizeof(cpu_set_t), &cpuset);
+					
+				}
 				
-				
+				for(int i  = 0 ; i < selectedThreads; i ++)
+				{
+					pthread_join(thread_compute[i],NULL);
+				}
+				std::string s(decrypted_data, decrypted_data + size);
+				D[realRow].append(s);
 			}
-			
-			for(int i  = 0 ; i < selectedThreads; i ++)
-			{
-				pthread_join(thread_compute[i],NULL);
+			else{
+				temp2 = new unsigned char[size];
+				memset(temp2, '0', size);
+		
+				memcpy(temp2, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				memset(counter2, '0', BLOCK_CIPHER_SIZE);
+				counter = 0;
+				for(int i = 0; i < ceil(storedIndexes.length()/16)+1; i++){
+					memcpy(temp, temp2 + 16*i, BLOCK_CIPHER_SIZE);
+					
+					//Extend This If Your Database is Huge
+					memcpy(counter2, &counter, sizeof(unsigned long long));
+					counter++;
+					
+					aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
+					memset(counter2,'0',BLOCK_CIPHER_SIZE);
+					std::string s(input, input + 16);
+					D[realRow].append(s);
+					
+					s.clear();
+					memset(temp,0,BLOCK_CIPHER_SIZE);
+					memset(input,0,BLOCK_CIPHER_SIZE);
+				}
 			}
-//			cout << "\nAfter the threading\n";
-//			cout << decrypted_data;
-			std::string s(decrypted_data, decrypted_data + size);
-			D[realRow].append(s);
-//			for(int i = 0; i < ceil(storedIndexes.length()/16)+1; i++){
-//				memcpy(temp, temp2 + 16*i, BLOCK_CIPHER_SIZE);
-//				
-//				//Extend This If Your Database is Huge
-//				counter2[0] = i & 0xFF;
-//				counter2[1] = (i>>8) & 0xFF;
-//				counter2[2] = (i>>16) & 0xFF;
-//				counter2[3] = (i>>24) & 0xFF;
-//				counter2[4] = (i>>32) & 0xFF;
-//				counter2[5] = (i>>40) & 0xFF;
-//				counter2[6] = (i>>48) & 0xFF;
-//				
-//				aes128_ctr_encdec(temp, input, key, counter2, ONE_VALUE);
-//				memset(counter2,0,BLOCK_CIPHER_SIZE);
-//				std::string s(input, input + 16);
-//				D[realRow].append(s);
-//				
-//				s.clear();
-//				memset(temp,0,BLOCK_CIPHER_SIZE);
-//				memset(input,0,BLOCK_CIPHER_SIZE);
-//			}
-
-			
-			
 		}
 		
 		storedIndexes.clear();
@@ -572,20 +578,16 @@ static void* thread_AES_CTR(void* args)
 {
     THREAD_COMPUTATION* opt = (THREAD_COMPUTATION*) args;
     static thread_local unsigned char counter2[BLOCK_CIPHER_SIZE];
-	memset(counter2, '10', BLOCK_CIPHER_SIZE);
+	static thread_local unsigned long long counter;
+	memset(counter2, '0', BLOCK_CIPHER_SIZE);
 //    std::cout << " CPU # " << sched_getcpu() << "\n";
 //	std::cout << " Start Index =  " << opt->startIdx << "\n";
 //	std::cout << " End Index = " << opt->endIdx << "\n";
-	
+	counter = opt->startIdx;
     for(int l = opt->startIdx ; l < opt->endIdx; l+=BLOCK_CIPHER_SIZE)
     {
-		counter2[0] = l & 0xFF;
-		counter2[1] = (l>>8) & 0xFF;
-		counter2[2] = (l>>16) & 0xFF;
-		counter2[3] = (l>>24) & 0xFF;
-		counter2[4] = (l>>32) & 0xFF;
-		counter2[5] = (l>>40) & 0xFF;
-		counter2[6] = (l>>48) & 0xFF;
+		memcpy(counter2, &counter, sizeof(unsigned long long));
+		counter++;
         aes128_ctr_encdec(&opt->encrypted_data[l],&opt->decrypted_data[l],opt->key,counter2,ONE_VALUE);
     }
 	//memset(counter2,0,BLOCK_CIPHER_SIZE);

@@ -1,43 +1,44 @@
-Debug/DSSE.cpp.o: /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE.cpp \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/MasterKey.h config.h \
- DSSE_Hashmap_Key_Class.h /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_MatrixType.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_SearchToken.h \
+Debug/Client_DSSE.cpp.o: \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Client_DSSE.cpp \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Client_DSSE.h MasterKey.h config.h \
+ DSSE_Hashmap_Key_Class.h struct_MatrixType.h \
  /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/config.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Keyword_Extraction.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Miscellaneous.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_Trapdoor.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_Crypto.h \
  /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_KeyGen.h \
- /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Client_DSSE.h MasterKey.h \
- struct_MatrixType.h
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/MasterKey.h:
-
-config.h:
-
-DSSE_Hashmap_Key_Class.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_MatrixType.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_SearchToken.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/config.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Keyword_Extraction.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Miscellaneous.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_Trapdoor.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_Crypto.h:
-
-/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_KeyGen.h:
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/MasterKey.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_MatrixType.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Miscellaneous.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_SearchToken.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/zmq.hpp \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_thread_precompute_aeskey.h \
+ /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_thread_getData.h
 
 /home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Client_DSSE.h:
 
 MasterKey.h:
 
+config.h:
+
+DSSE_Hashmap_Key_Class.h:
+
 struct_MatrixType.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/config.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE_KeyGen.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/MasterKey.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_MatrixType.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/Miscellaneous.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/DSSE.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_SearchToken.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/zmq.hpp:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_thread_precompute_aeskey.h:
+
+/home/ozgur/DSSE/ICC_DSSE/IM-DSSE/struct_thread_getData.h:

@@ -596,6 +596,7 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
     return 0;
  }
 
+//We do not need I_prime
 int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr ) 
 {
     int cmd;
@@ -633,8 +634,8 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
         socket.recv(serialized_buffer,serialized_buffer_len,0);
         
         // Deserialize 
-        memcpy(I_prime,serialized_buffer,(MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE);
-        for(row = 0,ii=(MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE) ; row < MATRIX_ROW_SIZE; ii++,row++)
+//        memcpy(I_prime,serialized_buffer,(MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE);
+        for(row = 0,ii=0 ; row < MATRIX_ROW_SIZE; ii++,row++)
         {
             state_col = ii / BYTE_SIZE;
             state_bit_position = ii % BYTE_SIZE;
@@ -754,7 +755,14 @@ auto end = time_now;
         dsse->requestBlock_index(adding_filename_with_path,block_index,this->T_F,this->lstFree_column_idx,this->masterKey);
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-
+		
+		printf("2. Getting state data from server...");
+		start = time_now;
+		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr);
+            
+		end = time_now;
+		cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+		
         printf("3. Peforming AddToken...");
 start = time_now;
         extracted_keywords.clear();
@@ -775,7 +783,7 @@ end = time_now;
         keywords_dictionary.insert(extracted_keywords.begin(),extracted_keywords.end());
         
 
-        printf("5. Send updated column/block to server...");
+        printf("4. Send updated column/block to server...");
         start = time_now;
         this->sendBlock_data(block_index,this->I_prime);
         end = time_now;
@@ -844,6 +852,15 @@ auto end = time_now;
         // THERE IS A PROBLEM WITH DELETING DB FILES!!!!!!!!
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+		
+		printf("2. Getting state data from server...");
+		start = time_now;
+		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr);
+            
+		end = time_now;
+		cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+		
+		
         printf("3. Peforming DelToken...");
         start = time_now;
         dsse->delToken( deleting_filename_with_path,                   
@@ -861,7 +878,7 @@ end = time_now;
 cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
     
     
-        printf("5. Send updated data to server...");
+        printf("4. Send updated data to server...");
         start = time_now;
         this->sendBlock_data(block_index,this->I_prime);
         end = time_now;

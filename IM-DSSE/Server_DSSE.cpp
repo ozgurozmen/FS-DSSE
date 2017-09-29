@@ -325,33 +325,33 @@ auto end = time_now;
 
     memcpy(&block_index,buffer_in,sizeof(block_index));
     
-    printf("2.  Retrieving the requested row/column....");
-start = time_now;
-    
-#if defined(DISK_STORAGE_MODE)
-    this->loadData_from_file(dim,block_index);
-    TYPE_INDEX idx = 0;
-	idx = block_index % (BYTE_SIZE / ENCRYPT_BLOCK_SIZE);
-    if(dim==ROW)
-    {
-        dsse->getBlock(0,dim,this->I_search,serialized_buffer);
-    }
-    else
-    {
-        dsse->getBlock( idx,dim,this->I_update,serialized_buffer);
-    }
-#else
-    dsse->getBlock(block_index,dim,this->I,serialized_buffer);
-#endif  
-    end = time_now;
-    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+//    printf("2.  Retrieving the requested row/column....");
+//start = time_now;
+//    
+//#if defined(DISK_STORAGE_MODE)
+//    this->loadData_from_file(dim,block_index);
+//    TYPE_INDEX idx = 0;
+//	idx = block_index % (BYTE_SIZE / ENCRYPT_BLOCK_SIZE);
+//    if(dim==ROW)
+//    {
+//        dsse->getBlock(0,dim,this->I_search,serialized_buffer);
+//    }
+//    else
+//    {
+//        dsse->getBlock( idx,dim,this->I_update,serialized_buffer);
+//    }
+//#else
+//    dsse->getBlock(block_index,dim,this->I,serialized_buffer);
+//#endif  
+//    end = time_now;
+//    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 
     printf("3.  Serializing...");    
     start = time_now;
     if(dim == COL)
     {
         TYPE_INDEX row,ii,state_col,state_bit_position;
-        for(row = 0, ii = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE) ; row < MATRIX_ROW_SIZE ; row++, ii++)
+        for(row = 0, ii = 0 ; row < MATRIX_ROW_SIZE ; row++, ii++)
         {
             state_col = ii / BYTE_SIZE;
             state_bit_position = ii % BYTE_SIZE;
