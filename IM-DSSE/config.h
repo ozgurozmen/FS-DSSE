@@ -8,9 +8,10 @@
 //#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
 //#define SEND_SEARCH_FILE_INDEX              // Search result contains specific file indexes
 
-#define PEER_ADDRESS "tcp://localhost:5555"
+//#define PEER_ADDRESS "tcp://localhost:5555"
 
 
+#define PEER_ADDRESS "tcp://128.193.38.12:5555"
 
 
 #define  MAX_NUM_OF_FILES 1024              // maximum number of keywords, should be power of 2 and divisible by 8

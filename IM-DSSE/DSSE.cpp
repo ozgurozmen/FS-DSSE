@@ -286,7 +286,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
     unsigned char U[BLOCK_CIPHER_SIZE];
     unsigned char V[BLOCK_CIPHER_SIZE];
     Miscellaneous misc;
-    bool need_reencrypt = 0;
+    int need_reencrypt = 0;
     string storedIndexes;
 	string decryptedIndexes;
 	string change;
@@ -303,6 +303,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 	unsigned char* decrypted_data;
 	
 	int selectedThreads = nthreads;
+	//int selectedThreads = 8;
     pthread_t* thread_compute = new pthread_t[selectedThreads];
 	THREAD_COMPUTATION* computeData_args = new THREAD_COMPUTATION[selectedThreads];
 	int startIdx = 0;
@@ -369,7 +370,7 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 						
 			step = BLOCK_CIPHER_SIZE*ceil((ceil((double)storedIndexes.length()/(double)BLOCK_CIPHER_SIZE))/(double)selectedThreads);
 			
-			if(step*(nthreads-1)<size){
+			if(step*(selectedThreads-1)<size){
 			
 				encrypted_data = new unsigned char[size];
 				decrypted_data = new unsigned char[size];
@@ -492,17 +493,20 @@ int DSSE::search(   vector<TYPE_INDEX> &rFileIDs,
 		//D[realRow] = storedIndexes;
 		
 		
-		if(need_reencrypt){
+		if(need_reencrypt == 1){
 			//Encrypt storedIndexes to D[realRow] with key
 			D[realRow] = "";
 			
 			step = 16*ceil((ceil((double)storedIndexes.length()/(double)16))/(double)selectedThreads);
-			if(step*7<size){
+										
+			if(step*(selectedThreads-1)<size){
 				encrypted_data = new unsigned char[size];
 				decrypted_data = new unsigned char[size];
 				memset(encrypted_data, '0', size);
 				memset(decrypted_data, '0', size);
 				memcpy(encrypted_data, (unsigned char*)storedIndexes.c_str(), storedIndexes.length());
+				
+				
 				
 				for(int i = 0, startIdx = 0; i < selectedThreads , startIdx < size; i ++, startIdx+=step)
 				{
@@ -580,7 +584,7 @@ static void* thread_AES_CTR(void* args)
     static thread_local unsigned char counter2[BLOCK_CIPHER_SIZE];
 	static thread_local unsigned long long counter;
 	memset(counter2, '0', BLOCK_CIPHER_SIZE);
-//    std::cout << " CPU # " << sched_getcpu() << "\n";
+    
 //	std::cout << " Start Index =  " << opt->startIdx << "\n";
 //	std::cout << " End Index = " << opt->endIdx << "\n";
 	counter = opt->startIdx;

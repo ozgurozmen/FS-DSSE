@@ -279,7 +279,7 @@ int Client_DSSE::sendFile(string filename, string path, int SENDING_TYPE)
         printf("OK!\n");
         
         printf("   Sending file name...");
-        socket.send((unsigned char*) filename.c_str(),strlen(filename.c_str()));
+        socket.send((unsigned char*) filename_with_path.c_str(),strlen(filename_with_path.c_str()));
         printf("OK!\n");
         socket.recv(buffer_in,SOCKET_BUFFER_SIZE);
         
@@ -379,6 +379,8 @@ int Client_DSSE::createEncrypted_data_structure()
         
         printf("\n---ENCRYPTED INDEX CONSTRUCTION COMPLETED!---\n");
         this->sendEncryptedIndex();
+		
+		this->sendCommandOnly(CMD_LOADSTATE); //trigger the server to load vital states into memory
         
     }
     catch (exception &ex)
