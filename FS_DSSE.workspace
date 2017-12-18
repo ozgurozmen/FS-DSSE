@@ -1,12 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Workspace Name="IM-DSSE" Database="" Version="10.0.0">
-  <Project Name="IM-DSSE" Path="IM-DSSE/IM-DSSE.project" Active="Yes"/>
+  <Project Name="FS_DSSE" Path="FS_DSSE/FS_DSSE.project" Active="No"/>
   <BuildMatrix>
     <WorkspaceConfiguration Name="Debug" Selected="yes">
-      <Project Name="IM-DSSE" ConfigName="Debug"/>
+      <Environment/>
+      <Project Name="FS_DSSE" ConfigName="Debug"/>
+      <Project Name="FS_DSSE" ConfigName="Debug"/>
     </WorkspaceConfiguration>
     <WorkspaceConfiguration Name="Release" Selected="yes">
-      <Project Name="IM-DSSE" ConfigName="Release"/>
+      <Environment/>
+      <Project Name="FS_DSSE" ConfigName="Release"/>
+      <Project Name="FS_DSSE" ConfigName="Release"/>
     </WorkspaceConfiguration>
   </BuildMatrix>
 </CodeLite_Workspace>
