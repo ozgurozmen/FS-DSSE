@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <CodeLite_Workspace Name="IM-DSSE" Database="" Version="10.0.0">
-  <Project Name="FS_DSSE" Path="FS_DSSE/FS_DSSE.project" Active="No"/>
+  <Project Name="FS_DSSE" Path="FS_DSSE/FS_DSSE.project" Active="Yes"/>
   <BuildMatrix>
     <WorkspaceConfiguration Name="Debug" Selected="yes">
       <Environment/>
