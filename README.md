@@ -5,8 +5,10 @@ TODO:
 3 - Store the keyword hash table at the server side and request and get it in search
 4 - Optimize the data type for D (OPTIONAL)
 
-# FS_DSSE
-Basic implementation of FS_DSSE. The full paper will be available soon. This project is built on CodeLite IDE (link: http://codelite.org). It is recommended to install CodeLite to load the full FS_DSSE workspace. 
+# Forward-private Sublinear DSSE (FS-DSSE)
+Basic implementation of FS-DSSE. The full paper is published in IEEE ICC 2018 and available at https://eprint.iacr.org/2017/1222.pdf. 
+
+This project is built on CodeLite IDE (link: http://codelite.org). It is recommended to install CodeLite to load the full FS_DSSE workspace. 
 
 
 # Required Libraries
