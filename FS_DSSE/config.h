@@ -8,10 +8,10 @@
 //#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
 //#define SEND_SEARCH_FILE_INDEX              // Search result contains specific file indexes
 
-//#define PEER_ADDRESS "tcp://localhost:5555"
+#define PEER_ADDRESS "tcp://localhost:5555"
 
 
-#define PEER_ADDRESS "tcp://128.193.38.12:5555"
+//#define PEER_ADDRESS "tcp://128.193.38.12:5555"
 
 
 #define  MAX_NUM_OF_FILES 1024              // maximum number of keywords, should be power of 2 and divisible by 8
@@ -105,17 +105,18 @@ using namespace boost::algorithm;
 #define CMD_SAVESTATE                   0x000012
 #define CMD_SEARCH_OPERATION            0x000020
 #define CMD_REQUEST_BLOCK_DATA          0x000050
-#define CMD_REQUEST_SEARCH_DATA         0x000051
 #define CMD_UPDATE_BLOCK_DATA           0x000060
 #define CMD_SUCCESS                     "CMD_OK"
 
 //define the default filename of some data structures in DSSE scheme
 #define FILENAME_BLOCK_STATE_MATRIX     "block_state_mat"
 #define FILENAME_BLOCK_COUNTER_ARRAY     "block_counter_arr"
+#define FILENAME_KEYWORD_STATE_ARRAY     "keyword_state_arr"
 #define FILENAME_SEARCH_INDEX_ARRAY     "search_index_arr"
 #define FILENAME_KEYWORD_COUNTER_ARRAY     "keyword_counter_arr"
 #define FILENAME_TOTAL_KEYWORDS_FILES     "keywords_files"
 #define FILENAME_SEARCH_RESULT          "search_result"
+#define FILENAME_ENCRYPTED_KEYWORD_COUNTER_ARRAY "encrypted_keyword_counter_arr"
 
 static const string gcsKwHashTable = "kw_hashtable";
 static const string gcsFileHashTable = "file_hashtable";

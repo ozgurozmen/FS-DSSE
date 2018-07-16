@@ -104,6 +104,15 @@ int DSSE_KeyGen::genMaster_key(MasterKey *pKey,
 	}
      Miscellaneous::print_ucharstring(pKey->key3,BLOCK_CIPHER_SIZE);
      cout<<endl;
+	 
+	 // Generate key4 using Krawczyk Key Derivation Function
+	if((error = Kraw->generate_krawczyk_128_KDF(pKey->key4, BLOCK_CIPHER_SIZE, (unsigned char *)"key4", 4, pPRK, BLOCK_CIPHER_SIZE)) != CRYPT_OK) 
+    {
+		printf("Error calling krawczyk_128_kdf function: %d\n", error/*error_to_string(error)*/);
+        exit(0);
+	}
+     Miscellaneous::print_ucharstring(pKey->key4,BLOCK_CIPHER_SIZE);
+     cout<<endl;
 
 exit:
     delete Kraw;

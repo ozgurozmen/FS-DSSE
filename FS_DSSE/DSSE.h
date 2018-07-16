@@ -62,9 +62,8 @@ public:
                                 
     int searchToken(SEARCH_TOKEN &pSearchToken, 
                     string keyword,
-                    TYPE_GOOGLE_DENSE_HASH_MAP &rT_W, 
-                    TYPE_COUNTER *pKeywordCounterArray,
-                    MasterKey *pKey);
+                    MasterKey *pKey,
+					unsigned char *keyword_counterS);
     
     int search( vector<TYPE_INDEX> &rFileIDs, 
                 SEARCH_TOKEN pSearchToken, 

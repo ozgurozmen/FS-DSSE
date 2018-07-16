@@ -198,15 +198,13 @@ int DSSE::setupData_structure(
  *
  * @param pSearchToken: (output) generated search token
  * @param keyword: (input) keyword being searched
- * @param pKeywordCounterArray: (input) keyword counters
  * @param pKey: (input) symmetric keys for data structure encryption
  * @return	0 if successful
  */
 int DSSE::searchToken(SEARCH_TOKEN &pSearchToken,
 		string keyword,
-        TYPE_GOOGLE_DENSE_HASH_MAP &rT_W,
-        TYPE_COUNTER *pKeywordCounterArray,
-		MasterKey *pKey) 
+		MasterKey *pKey,
+		unsigned char *keyword_counterS) 
 {
 	unsigned char keyword_trapdoor[TRAPDOOR_SIZE] = {'\0'};
     TYPE_COUNTER keyword_counter;
@@ -218,24 +216,40 @@ int DSSE::searchToken(SEARCH_TOKEN &pSearchToken,
 	try
     {
         /* Generates the trapdoor for the keyword to be searched */
-        int keyword_length = strlen(keyword.c_str());
-        
-        dsse_trapdoor->generateTrapdoor_single_input(keyword_trapdoor, TRAPDOOR_SIZE, (unsigned char *)keyword.c_str(), keyword_length, pKey);
-        
-        hashmap_key_class hmap_keyword_trapdoor(keyword_trapdoor, TRAPDOOR_SIZE);
-        if(rT_W[hmap_keyword_trapdoor]!=NULL)
-            pSearchToken.row_index = rT_W[hmap_keyword_trapdoor];
-        else
-        {
-            pSearchToken.row_index = KEYWORD_NOT_EXIST;
-            return 0;
-        }
-        if(pKeywordCounterArray[pSearchToken.row_index] == ULONG_MAX)
-        {
-            printf("Error! counter limit exceeded");
-            exit(1);
-        }
-        keyword_counter = pKeywordCounterArray[pSearchToken.row_index];
+//        int keyword_length = strlen(keyword.c_str());
+//        
+//        dsse_trapdoor->generateTrapdoor_single_input(keyword_trapdoor, TRAPDOOR_SIZE, (unsigned char *)keyword.c_str(), keyword_length, pKey);
+//        
+//		
+//		//**Done by Server
+//        hashmap_key_class hmap_keyword_trapdoor(keyword_trapdoor, TRAPDOOR_SIZE);
+//        if(rT_W[hmap_keyword_trapdoor]!=NULL)
+//            pSearchToken.row_index = rT_W[hmap_keyword_trapdoor];
+//        else
+//        {
+//            pSearchToken.row_index = KEYWORD_NOT_EXIST;
+//            return 0;
+//        }
+//        if(pKeywordCounterArray[pSearchToken.row_index] == ULONG_MAX)
+//        {
+//            printf("Error! counter limit exceeded");
+//            exit(1);
+//        }
+//        keyword_counter = pKeywordCounterArray[pSearchToken.row_index];
+		//**
+		
+		
+		unsigned char counter_keyword [BLOCK_CIPHER_SIZE] = {0};
+		unsigned char ciphertext [BLOCK_CIPHER_SIZE] = {0};
+		
+		memcpy(counter_keyword,&pSearchToken.row_index,sizeof(pSearchToken.row_index));
+				
+		aes128_ctr_encdec(keyword_counterS, ciphertext, pKey->key4, counter_keyword, ONE_VALUE);
+		memcpy(&keyword_counter, ciphertext, BLOCK_CIPHER_SIZE);
+		memset(counter_keyword,0,BLOCK_CIPHER_SIZE);
+		memset(ciphertext,0,BLOCK_CIPHER_SIZE);
+		
+		
         memset(row_key_input,0,sizeof(row_key_input));
         memcpy(row_key_input,&pSearchToken.row_index,sizeof(pSearchToken.row_index));
         memcpy(&row_key_input[BLOCK_CIPHER_SIZE/2],&keyword_counter,sizeof(keyword_counter));
@@ -790,7 +804,7 @@ int DSSE::delToken(string del_file_with_path,
               vector<TYPE_INDEX> &lstFree_row_idx,
               MasterKey* pKey){
 
-DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
+	DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
     DSSE_KeyGen* dsse_keygen = new DSSE_KeyGen(); 
     Miscellaneous misc;
     int bit_position;
@@ -826,12 +840,14 @@ DSSE_Trapdoor *dsse_trapdoor = new DSSE_Trapdoor();
         
         file_index = rT_F[hmap_file_trapdoor];
         block_index = file_index / ENCRYPT_BLOCK_SIZE;
+		
         TYPE_COUNTER next_counter = pBlockCounterArray[block_index] + 1;
         
         /* Remove the file trapdoor entry from the file hashmap */
         lstFree_column_idx.push_back(file_index);
         rT_F.erase(hmap_file_trapdoor);
-        
+		
+		
         
 		for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
 		{
@@ -997,7 +1013,7 @@ int DSSE::requestBlock_index(   string adding_filename_with_pad,
                                     adding_filename_with_pad.size(), pKey);
         hashmap_key_class hmap_file_trapdoor(file_trapdoor,TRAPDOOR_SIZE);
 		
-		//Ozgur This is for ADD files I guess!!
+		
         if(rT_F[hmap_file_trapdoor] == NULL)
         {
             this->pickRandom_element(selectedIdx,lstFree_column_idx,&prng);
@@ -1435,6 +1451,28 @@ int DSSE::createEncrypted_matrix_from_kw_file_pair(vector<vector<TYPE_INDEX>> &k
         delete[] I[m];
     }
     delete[] I;
+	
+	//Create encrypted keyword counter array-OZG
+	unsigned char* encrypted_keyword_counter_array;
+	
+	encrypted_keyword_counter_array = new unsigned char[MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE];
+	
+	unsigned char counter_keyword [BLOCK_CIPHER_SIZE] = {0};
+	unsigned char plaintext [BLOCK_CIPHER_SIZE] = {0};
+	
+	
+    for(row = 0 ; row < MATRIX_ROW_SIZE ; row++){
+		memcpy(counter_keyword,&row,sizeof(row));
+		memcpy(plaintext, &row_counter_arr[row], sizeof(row_counter_arr[row]));
+		aes128_ctr_encdec(plaintext, encrypted_keyword_counter_array+row*BLOCK_CIPHER_SIZE, pKey->key4, counter_keyword, ONE_VALUE);
+		memset(counter_keyword,0,BLOCK_CIPHER_SIZE);
+		memset(plaintext,0,BLOCK_CIPHER_SIZE);
+	}
+	
+	misc.write_encArray_to_file(FILENAME_ENCRYPTED_KEYWORD_COUNTER_ARRAY, gcsDataStructureFilepath , encrypted_keyword_counter_array, MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE);
+	
+    delete[] encrypted_keyword_counter_array;
+	
     return 0;
 }
 

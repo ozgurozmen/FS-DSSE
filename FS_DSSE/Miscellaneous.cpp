@@ -533,6 +533,7 @@ int Miscellaneous::read_array_from_file(string filename, string path, bool* arr,
     return 0;
 }
 //Ozgur
+
 int Miscellaneous::write_array_to_file(string filename, string path, string* arr, TYPE_INDEX size)
 {
     std::ofstream output;
@@ -560,6 +561,47 @@ int Miscellaneous::read_array_from_file(string filename, string path, string* ar
     }
 	
     input.close();
+    return 0;
+}
+int Miscellaneous::write_encArray_to_file(string filename, string path, unsigned char* arr, TYPE_INDEX size)
+{
+//    std::ofstream output;
+//	TYPE_INDEX i;
+//    
+//	output.open(path+filename);
+//	for(i = 0; i < size; i++)
+//    {
+//        output << arr[i];
+//    }
+//
+//	output.close();
+	string filename_with_path = path + filename;
+	FILE *foutput = fopen(filename_with_path.c_str(),"wb+");;
+	fwrite(arr, size, 1, foutput);
+    fclose(foutput);
+	
+    
+    return 0;
+}
+int Miscellaneous::read_encArray_from_file(string filename, string path, unsigned char* arr, TYPE_INDEX size)
+{
+//    ifstream input;
+//    TYPE_INDEX i;
+//    input.open(path+filename);
+//    
+//    for(i = 0 ; i < size;i++)
+//    {
+//        input>> arr[i];
+//    }
+//	
+//    input.close();
+	
+	string filename_with_path = path + filename;
+	FILE *finput;
+    finput = fopen(filename_with_path.c_str(), "rb" );
+	fread(arr, size, 1, finput);
+    fclose(finput);
+	
     return 0;
 }
 int Miscellaneous::write_counter_to_file(string filename, string path, TYPE_COUNTER n)

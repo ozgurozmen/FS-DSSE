@@ -18,7 +18,7 @@ MasterKey::~MasterKey()
  */
 bool MasterKey::isNULL()
 {
-    if(this->key1 ==NULL || this->key2 == NULL || this->key3 == NULL)
+    if(this->key1 ==NULL || this->key2 == NULL || this->key3 == NULL || this->key4 == NULL)
         return 1;
     return 0;
 }

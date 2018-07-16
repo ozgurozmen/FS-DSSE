@@ -1,6 +1,7 @@
 #include "Client_DSSE.h"
 #include "config.h"
 #include "DSSE_KeyGen.h"
+#include "DSSE_Trapdoor.h"     
 #include "string.h"
 #include <sstream>	
 #include "Miscellaneous.h"
@@ -53,6 +54,8 @@ Client_DSSE::Client_DSSE()
 	
 	block_state_arr = new bool[MATRIX_ROW_SIZE];
 	memset(block_state_arr,0,MATRIX_ROW_SIZE);
+	
+	
 }
 
 Client_DSSE::~Client_DSSE()
@@ -101,12 +104,15 @@ int Client_DSSE::genMaster_key()
     
     key_loc = gcsDataStructureFilepath + "key3";
     Miscellaneous::write_file_cpp(key_loc,this->masterKey->key3,BLOCK_CIPHER_SIZE);
+	
+	key_loc = gcsDataStructureFilepath + "key4";
+    Miscellaneous::write_file_cpp(key_loc,this->masterKey->key4,BLOCK_CIPHER_SIZE);
     
     printf("OK!\n");
     
     printf("   Writing hash tables...");
     
-    Miscellaneous::writeHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath);
+//    Miscellaneous::writeHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath);
     Miscellaneous::writeHash_table(T_F,gcsFileHashTable,gcsDataStructureFilepath);
         
     Miscellaneous::write_list_to_file(gcsListFreeFileIdx,gcsDataStructureFilepath,lstFree_column_idx);
@@ -119,9 +125,9 @@ int Client_DSSE::genMaster_key()
     printf("OK!\n");
         
     
-    printf("   Writing row counter...");
-    Miscellaneous::write_array_to_file(FILENAME_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->keyword_counter_arr,MATRIX_ROW_SIZE);
-    printf("OK!\n");
+//    printf("   Writing row counter...");
+//    Miscellaneous::write_array_to_file(FILENAME_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->keyword_counter_arr,MATRIX_ROW_SIZE);
+//    printf("OK!\n");
         
         
     printf("   Writing total keywords and files...");
@@ -153,11 +159,14 @@ int Client_DSSE::loadState()
     
     key_loc = gcsDataStructureFilepath + "key3" ;
     Miscellaneous::read_file_cpp(this->masterKey->key3,BLOCK_CIPHER_SIZE,key_loc);
+	
+	key_loc = gcsDataStructureFilepath + "key4" ;
+    Miscellaneous::read_file_cpp(this->masterKey->key4,BLOCK_CIPHER_SIZE,key_loc);
     
     //Load client state
     unsigned char empty_label[6] = "EMPTY";
     unsigned char delete_label[7] = "DELETE";
-      hashmap_key_class empty_key = hashmap_key_class(empty_label,6);
+	hashmap_key_class empty_key = hashmap_key_class(empty_label,6);
     hashmap_key_class delete_key = hashmap_key_class(delete_label,7);
     printf("OK!\n");
     printf("    Loading hash tables...");
@@ -182,7 +191,7 @@ int Client_DSSE::loadState()
     TYPE_COUNTER total_keywords_files[2];
     Miscellaneous::read_array_from_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,total_keywords_files,2);
         
-    Miscellaneous::readHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath,total_keywords_files[0]);
+//    Miscellaneous::readHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath,total_keywords_files[0]);
     Miscellaneous::readHash_table(T_F,gcsFileHashTable,gcsDataStructureFilepath,total_keywords_files[1]);
     
     lstFree_column_idx.reserve(MAX_NUM_OF_FILES);
@@ -197,10 +206,10 @@ int Client_DSSE::loadState()
     
     
     
-    printf("   Loading column and row counters...");
+    printf("   Loading column counters...");
     Miscellaneous::read_array_from_file(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,this->block_counter_arr,NUM_BLOCKS);
     
-    Miscellaneous::read_array_from_file(FILENAME_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->keyword_counter_arr,MATRIX_ROW_SIZE);
+//    Miscellaneous::read_array_from_file(FILENAME_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->keyword_counter_arr,MATRIX_ROW_SIZE);
     printf("OK!\n");
             
         
@@ -381,6 +390,7 @@ int Client_DSSE::createEncrypted_data_structure()
         this->sendEncryptedIndex();
 		
 		this->sendCommandOnly(CMD_LOADSTATE); //trigger the server to load vital states into memory
+		T_W.clear();
         
     }
     catch (exception &ex)
@@ -444,7 +454,7 @@ int Client_DSSE::sendEncryptedIndex()
             }
         }
         printf("OK!\n");
-        printf("1. Sending State Matrix I.st...");
+        printf("2. Sending State Matrix I.st...");
         n = NUM_BLOCKS/BYTE_SIZE/BLOCK_STATE_PIECE_COL_SIZE;
         for(int i = 0 ; i < n ; i++)
         {
@@ -457,8 +467,20 @@ int Client_DSSE::sendEncryptedIndex()
         printf("OK!\n");
         printf("3. Sending block counter...");
         this->sendFile(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
-        printf("OK!!\n");        
-    }
+        printf("OK!!\n");
+		//Ozgur - SEND Hash table here
+		printf("4. Sending hash table...");
+        this->sendFile(gcsFileHashTable,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
+        printf("OK!!\n");
+		
+		printf("5. Sending keyword counter...");
+        this->sendFile(FILENAME_ENCRYPTED_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
+        printf("OK!!\n");
+		
+		printf("6. Sending total keywords files...");
+        this->sendFile(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
+        printf("OK!!\n");
+	}
     else
     {
        this->sendCommandOnly(CMD_LOADSTATE);
@@ -490,6 +512,9 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
     zmq::socket_t socket (context,ZMQ_REQ);
     int cmd;
     vector<TYPE_INDEX> lstFile_id;
+	unsigned char* keyword_counter;
+	keyword_counter = new unsigned char[BLOCK_CIPHER_SIZE];
+	
 #if defined(SEND_SEARCH_FILE_INDEX)
     string filename_search_result = gcsDataStructureFilepath + FILENAME_SEARCH_RESULT;
     int64_t more;
@@ -507,38 +532,49 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
             return 0;
         }
         printf("\n\n Searching \"%s\" ....\n\n", keyword.c_str());
-        /*Generate the token for this keyword using SrchToken procedure*/        
-        printf("1. Generating keyword token...");
-        start = time_now;
-        dsse->searchToken(  tau,
-                            keyword,
-                            this->T_W,
-                            this->keyword_counter_arr,
-                            this->masterKey);
-        end = time_now;
-        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-        if(tau.row_index == KEYWORD_NOT_EXIST)
-        {
-            res = 0;
-            return 0;
-        }
-        
-        //increase counter to 1
-		//Ozgur DO NOT increase the counter by 1
-		//Ozgur In the search token algorithm, only generate the last key with last counter.
-        //this->keyword_counter_arr[tau.row_index]+=1;
-        
-        
-        start = time_now;
-        printf("2. Sending keyword token and waiting for result...");
-        
-        socket.connect(PEER_ADDRESS);
+        /*Generate the token for this keyword using SrchToken procedure*/
+		socket.connect(PEER_ADDRESS);
         
         // Send search command
         cmd = CMD_SEARCH_OPERATION;
         memset(buffer_out,0,SOCKET_BUFFER_SIZE);
         memcpy(buffer_out,&cmd,sizeof(cmd));
         socket.send(buffer_out,SOCKET_BUFFER_SIZE,ZMQ_SNDMORE);
+		
+		int keyword_length = strlen(keyword.c_str());
+		unsigned char keyword_trapdoor[TRAPDOOR_SIZE] = {'\0'};
+		DSSE_Trapdoor* dsse_trapdoor = new DSSE_Trapdoor();
+		dsse_trapdoor->generateTrapdoor_single_input(keyword_trapdoor, TRAPDOOR_SIZE, (unsigned char *)keyword.c_str(), keyword_length, this->masterKey);
+		socket.send(keyword_trapdoor, TRAPDOOR_SIZE);
+		
+		
+		//Receive hash table info
+		memset(buffer_in,0,SOCKET_BUFFER_SIZE);
+		socket.recv(buffer_in, SOCKET_BUFFER_SIZE);
+		memcpy(&tau.row_index, buffer_in, sizeof(TYPE_INDEX));
+		memcpy(keyword_counter, &buffer_in[sizeof(TYPE_INDEX)], BLOCK_CIPHER_SIZE);
+//		std::string keyword_counter(buffer_in+sizeof(TYPE_INDEX), buffer_in+sizeof(TYPE_INDEX)+BLOCK_CIPHER_SIZE);
+
+		if(tau.row_index == KEYWORD_NOT_EXIST)
+        {
+            res = 0;
+            return 0;
+        }
+		
+        printf("1. Generating keyword token...");
+        start = time_now;
+        dsse->searchToken(  tau,
+                            keyword,
+                            this->masterKey,
+							keyword_counter);
+        end = time_now;
+        cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+        
+        
+        start = time_now;
+        printf("2. Sending keyword token and waiting for result...");
+        
+        
         
         // Send keyword token
         memset(buffer_out,0,SOCKET_BUFFER_SIZE);
@@ -768,6 +804,10 @@ auto end = time_now;
         printf("3. Peforming AddToken...");
 start = time_now;
         extracted_keywords.clear();
+		
+		//T_W and keyword_counter_arr are at server now
+		//Get keyword_counter_arr (bool, serialize), increase them before generating the token, Get T_W and keyword_state_arr as well.
+		
         dsse->addToken( adding_filename_with_path,           
                         this->I_prime,
                         file_index,
@@ -862,7 +902,7 @@ auto end = time_now;
 		end = time_now;
 		cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 		
-		
+		//T_W and keyword_counter_arr are at server now
         printf("3. Peforming DelToken...");
         start = time_now;
         dsse->delToken( deleting_filename_with_path,                   
@@ -900,53 +940,6 @@ cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<"
     return 0;
 }
 
-int Client_DSSE::requestSearch_data(TYPE_INDEX row_index, MatrixType* I_prime) 
-{
-    int cmd;
-    unsigned char buffer_in[SOCKET_BUFFER_SIZE] = {'\0'};
-    unsigned char buffer_out[SOCKET_BUFFER_SIZE] = {'\0'};
-    
-    zmq::context_t context(1);
-    zmq::socket_t socket(context,ZMQ_REQ);
-    
-    TYPE_INDEX serialized_buffer_len = MATRIX_COL_SIZE;
-    
-    TYPE_INDEX row,ii,state_col,state_bit_position;
-    try
-    {   
-        
-        // Connect to server
-        socket.connect(PEER_ADDRESS);
-        
-        // Send search command
-        cmd = CMD_REQUEST_SEARCH_DATA;
-        memset(buffer_out,0,SOCKET_BUFFER_SIZE);
-        memcpy(buffer_out,&cmd,sizeof(cmd));
-        socket.send(buffer_out,SOCKET_BUFFER_SIZE,ZMQ_SNDMORE);
-        
-        // Send search request index
-        memset(buffer_out,0,SOCKET_BUFFER_SIZE);
-        memcpy(buffer_out,&row_index,sizeof(row_index));
-
-        socket.send(buffer_out,SOCKET_BUFFER_SIZE);
-        
-        // Receive search data
-        socket.recv((unsigned char*)I_prime,serialized_buffer_len);
- 
-    }
-    catch(exception &ex)
-    {
-        printf("Error!\n");
-        exit(1);
-    }
-    
-    memset(buffer_in,0,SOCKET_BUFFER_SIZE);
-    memset(buffer_out,0,SOCKET_BUFFER_SIZE);
-    socket.disconnect(PEER_ADDRESS);
-    socket.close();
-    return 0;
-}
-
 
 
 
@@ -962,30 +955,5 @@ void *Client_DSSE::thread_precomputeAesKey_func(void* param)
     cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
     pthread_exit((void*)opt);
 }
-void *Client_DSSE::thread_getSearchData_func(void* param)
-{
-    printf("\n   [Thread] Getting search data from server...");
-    auto start = time_now;
-    THREAD_GETDATA* opt = (THREAD_GETDATA*) param;
-    Client_DSSE* call = new Client_DSSE();
-    call->requestSearch_data(opt->idx, opt->data);
-    auto end = time_now;
-    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-    
-    delete call;
-    pthread_exit((void*)opt);
-}
-void *Client_DSSE::thread_getUpdateData_func(void* param)
-{
-    printf("\n   [Thread] Getting update data from server...");
-    auto start = time_now;
-    THREAD_GETDATA* opt = (THREAD_GETDATA*) param;
-    Client_DSSE* call = new Client_DSSE();
-    call->requestBlock_data(opt->idx,opt->data,NULL);
-    auto end = time_now;
-    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-    
-    delete call;
-    pthread_exit((void*)opt);
-}
+
 

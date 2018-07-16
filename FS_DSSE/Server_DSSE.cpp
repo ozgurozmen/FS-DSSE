@@ -21,7 +21,14 @@ Server_DSSE::Server_DSSE()
     block_counter_arr = new TYPE_COUNTER[NUM_BLOCKS];
     for(int i = 0 ; i < NUM_BLOCKS; i++)
         block_counter_arr[i]=1;
-	
+		
+	encrypted_keyword_counter_arr = new unsigned char[MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE];
+	memset(encrypted_keyword_counter_arr, ZERO_VALUE, MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE);
+		
+	keyword_state_arr = new bool[MATRIX_ROW_SIZE];
+    for(int i = 0 ; i < MATRIX_ROW_SIZE; i++)
+        keyword_state_arr[i]=1;
+		
 	D = new string[MATRIX_ROW_SIZE];
 	for(int i = 0 ; i < MATRIX_ROW_SIZE; i++)
         D[i]="";
@@ -121,10 +128,6 @@ int Server_DSSE::start()
             printf("*UPDATE ENCRYPTED INDEX!* requested\n");
             this->updateBlock_data(socket);
             break;
-        case CMD_REQUEST_SEARCH_DATA:
-            printf("*GET ENCRYPTED SEARCH DATA!* requested\n");
-            this->getBlock_data(socket,ROW);
-            break;
         default:
             break;
         }
@@ -164,9 +167,35 @@ int Server_DSSE::loadState()
     printf("   Loading block counter array...");
     Miscellaneous::read_array_from_file(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,this->block_counter_arr,NUM_BLOCKS);
     printf("OK!\n");
+
+	//Ozgur
+	printf("   Loading keyword state array...");
+    Miscellaneous::read_array_from_file(FILENAME_KEYWORD_STATE_ARRAY,gcsDataStructureFilepath,this->keyword_state_arr,NUM_BLOCKS);
+    printf("OK!\n");
 	
 	printf("   Loading File Index Set...");
     Miscellaneous::read_array_from_file(FILENAME_SEARCH_INDEX_ARRAY,gcsSearchIndexFilepath,this->D,NUM_BLOCKS);
+    printf("OK!\n");
+	
+	unsigned char empty_label[6] = "EMPTY";
+    unsigned char delete_label[7] = "DELETE";
+	hashmap_key_class empty_key = hashmap_key_class(empty_label,6);
+    hashmap_key_class delete_key = hashmap_key_class(delete_label,7);
+	T_W = TYPE_GOOGLE_DENSE_HASH_MAP(MAX_NUM_KEYWORDS*KEYWORD_LOADING_FACTOR);
+    T_W.max_load_factor(KEYWORD_LOADING_FACTOR);
+    T_W.min_load_factor(0.0);
+    T_W.set_empty_key(empty_key);
+    T_W.set_deleted_key(delete_key);
+	
+	T_W.clear();
+	TYPE_COUNTER total_keywords_files[2];
+    Miscellaneous::read_array_from_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,total_keywords_files,2);
+	
+	Miscellaneous::readHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath,total_keywords_files[0]);
+	
+	
+	
+	Miscellaneous::read_encArray_from_file(FILENAME_ENCRYPTED_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->encrypted_keyword_counter_arr,MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE);
     printf("OK!\n");
 
 }
@@ -198,14 +227,20 @@ int Server_DSSE::saveState()
     printf("   Saving block counter array...");
     Miscellaneous::write_array_to_file(FILENAME_BLOCK_COUNTER_ARRAY,gcsDataStructureFilepath,this->block_counter_arr,NUM_BLOCKS);
     printf("OK!\n");
+	
+	printf("   Saving keyword state array...");
+    Miscellaneous::write_array_to_file(FILENAME_KEYWORD_STATE_ARRAY,gcsDataStructureFilepath,this->keyword_state_arr,NUM_BLOCKS);
+    printf("OK!\n");
 
 	printf("   Saving File Index Set...");
     Miscellaneous::write_array_to_file(FILENAME_SEARCH_INDEX_ARRAY,gcsSearchIndexFilepath,this->D,NUM_BLOCKS);
     printf("OK!\n");
+	
+	Miscellaneous::writeHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath);
+
     
 }
 
-// OZGUR UPDATE FUNCTION IN SERVER
 /**
  * Function Name: updateBlock_data
  *
@@ -346,7 +381,7 @@ auto end = time_now;
 //    end = time_now;
 //    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 
-    printf("3.  Serializing...");    
+    printf("2.  Serializing...");    
     start = time_now;
     if(dim == COL)
     {
@@ -510,6 +545,27 @@ auto end = time_now;
 
     unsigned char buffer_out[SOCKET_BUFFER_SIZE] = {'\0'};
     unsigned char buffer_in[SOCKET_BUFFER_SIZE] = {'\0'};
+	unsigned char keyword_trapdoor[TRAPDOOR_SIZE] = {'\0'};
+	//Receive keyword_trapdoor Ozgur
+	socket.recv(keyword_trapdoor, TRAPDOOR_SIZE);
+	hashmap_key_class hmap_keyword_trapdoor(keyword_trapdoor, TRAPDOOR_SIZE);
+	if(T_W[hmap_keyword_trapdoor]!=NULL)
+		tau.row_index = T_W[hmap_keyword_trapdoor];
+	else
+	{
+		tau.row_index = KEYWORD_NOT_EXIST;
+	}
+		
+	memset(buffer_out,0,SOCKET_BUFFER_SIZE);
+	memcpy(buffer_out, &tau.row_index, sizeof(TYPE_INDEX));
+	memcpy(&buffer_out[sizeof(TYPE_INDEX)], this->encrypted_keyword_counter_arr + tau.row_index*BLOCK_CIPHER_SIZE, BLOCK_CIPHER_SIZE);
+	
+	socket.send(buffer_out, SOCKET_BUFFER_SIZE);
+	
+	if(tau.row_index == KEYWORD_NOT_EXIST)
+		return 0;
+		
+	keyword_state_arr[tau.row_index] = 0;
     
 #if defined(SEND_SEARCH_FILE_INDEX)
     FILE* finput;

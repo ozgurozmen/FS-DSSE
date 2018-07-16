@@ -69,14 +69,11 @@ public:
 
 
     int sendFile(string filename, string path, int SENDING_TYPE);    
-    int requestSearch_data(TYPE_INDEX row_index, MatrixType* I_prime);
     int requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr);
     int sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime);
 
     
     static void* thread_precomputeAesKey_func(void* param);
-    static void* thread_getSearchData_func(void* param);
-    static void* thread_getUpdateData_func(void* param);
 };
 
 #endif // CLIENT_DSSE_H
