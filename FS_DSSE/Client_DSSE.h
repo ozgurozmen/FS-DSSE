@@ -25,7 +25,7 @@ private:
     TYPE_COUNTER keyword_counter_arr[MAX_NUM_KEYWORDS];
     //counter for block
     TYPE_COUNTER block_counter_arr[NUM_BLOCKS];
-
+	TYPE_COUNTER total_keywords_files[2];
 
     unsigned char* row_keys;
     unsigned char* decrypt_key;
@@ -68,9 +68,9 @@ public:
     
 
 
-    int sendFile(string filename, string path, int SENDING_TYPE);    
-    int requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr);
-    int sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime);
+    int sendFile(string filename, string path, int SENDING_TYPE);  
+	int requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr, bool* keyword_state_arr, unsigned char* encrypted_keyword_counter_arr, TYPE_GOOGLE_DENSE_HASH_MAP &rT_W);
+	int sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime);
 
     
     static void* thread_precomputeAesKey_func(void* param);

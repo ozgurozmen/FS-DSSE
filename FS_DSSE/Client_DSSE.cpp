@@ -112,7 +112,7 @@ int Client_DSSE::genMaster_key()
     
     printf("   Writing hash tables...");
     
-//    Miscellaneous::writeHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath);
+    Miscellaneous::writeHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath);
     Miscellaneous::writeHash_table(T_F,gcsFileHashTable,gcsDataStructureFilepath);
         
     Miscellaneous::write_list_to_file(gcsListFreeFileIdx,gcsDataStructureFilepath,lstFree_column_idx);
@@ -131,8 +131,11 @@ int Client_DSSE::genMaster_key()
         
         
     printf("   Writing total keywords and files...");
-    TYPE_COUNTER total_keywords_files[2] = {this->T_W.load_factor()*T_W.bucket_count(), this->T_F.load_factor()*T_F.bucket_count()} ;
-    Miscellaneous::write_array_to_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,total_keywords_files,2);
+	this->total_keywords_files[0] = this->T_W.load_factor()*T_W.bucket_count();
+	this->total_keywords_files[1] = this->T_F.load_factor()*T_F.bucket_count();
+	
+//    TYPE_COUNTER total_keywords_files[2] = {this->T_W.load_factor()*T_W.bucket_count(), this->T_F.load_factor()*T_F.bucket_count()} ;
+    Miscellaneous::write_array_to_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,this->total_keywords_files,2);
     printf("OK!\n");
     
 }
@@ -188,7 +191,7 @@ int Client_DSSE::loadState()
     T_F.clear();
 
 
-    TYPE_COUNTER total_keywords_files[2];
+    
     Miscellaneous::read_array_from_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,total_keywords_files,2);
         
 //    Miscellaneous::readHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath,total_keywords_files[0]);
@@ -391,7 +394,7 @@ int Client_DSSE::createEncrypted_data_structure()
 		
 		this->sendCommandOnly(CMD_LOADSTATE); //trigger the server to load vital states into memory
 		T_W.clear();
-        
+        memset(this->keyword_counter_arr, 0, MATRIX_ROW_SIZE);
     }
     catch (exception &ex)
     {
@@ -470,7 +473,7 @@ int Client_DSSE::sendEncryptedIndex()
         printf("OK!!\n");
 		//Ozgur - SEND Hash table here
 		printf("4. Sending hash table...");
-        this->sendFile(gcsFileHashTable,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
+        this->sendFile(gcsKwHashTable,gcsDataStructureFilepath,CMD_SEND_DATA_STRUCTURE);
         printf("OK!!\n");
 		
 		printf("5. Sending keyword counter...");
@@ -635,7 +638,7 @@ int Client_DSSE::searchKeyword(string keyword, TYPE_COUNTER &res)
  }
 
 //We do not need I_prime
-int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr ) 
+int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr, bool* keyword_state_arr, unsigned char* encrypted_keyword_counter_arr, TYPE_GOOGLE_DENSE_HASH_MAP &rT_W) 
 {
     int cmd;
     unsigned char buffer_in[SOCKET_BUFFER_SIZE] = {'\0'};
@@ -643,12 +646,24 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
     
     zmq::context_t context(1);
     zmq::socket_t socket(context,ZMQ_REQ);
-    
-    TYPE_INDEX serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE+(MATRIX_ROW_SIZE/BYTE_SIZE);
+	
+    TYPE_INDEX curIdx;
+	TYPE_INDEX block_state_len = MATRIX_ROW_SIZE/BYTE_SIZE;
+	TYPE_INDEX keyword_state_len = MATRIX_ROW_SIZE/BYTE_SIZE;
+	TYPE_INDEX keyword_counter_len = BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE;
+	TYPE_INDEX hash_trapdoor_len = TRAPDOOR_SIZE*total_keywords_files[0];
+	TYPE_INDEX hash_index_len = sizeof(TYPE_INDEX)*total_keywords_files[0];
+	TYPE_INDEX serialized_buffer_len = block_state_len + keyword_state_len + keyword_counter_len + hash_trapdoor_len + hash_index_len;	
     TYPE_INDEX row,ii,state_col,state_bit_position;
+	
+	unsigned char empty_label[6] = "EMPTY";
+    unsigned char delete_label[7] = "DELETE";
+    hashmap_key_class empty_key = hashmap_key_class(empty_label,6);
+    hashmap_key_class delete_key = hashmap_key_class(delete_label,7);
     
-    MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len]; //consist of data and block state
-    
+//    unsigned char* serialized_buffer = new unsigned char[serialized_buffer_len]; //consist of data and block state
+	MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len];
+    unsigned char tmp[TRAPDOOR_SIZE];
 
     try
     {   
@@ -681,7 +696,31 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
                 block_state_arr[row] = ONE_VALUE;
             else
                 block_state_arr[row] = ZERO_VALUE;
+				
+			if(BIT_CHECK(&serialized_buffer[block_state_len + state_col].byte_data,state_bit_position))
+                keyword_state_arr[row] = ONE_VALUE;
+            else
+                keyword_state_arr[row] = ZERO_VALUE;			
         }
+		memcpy(encrypted_keyword_counter_arr, &serialized_buffer[block_state_len+keyword_state_len], keyword_counter_len);
+		
+		rT_W = TYPE_GOOGLE_DENSE_HASH_MAP(MAX_NUM_KEYWORDS*KEYWORD_LOADING_FACTOR);
+        rT_W.max_load_factor(KEYWORD_LOADING_FACTOR);
+		rT_W.min_load_factor(0.0);
+        rT_W.set_empty_key(empty_key);
+		rT_W.set_deleted_key(delete_key);
+		
+		rT_W.clear();
+		
+		for(ii = 0; ii < this->total_keywords_files[0]; ii++)
+		{	
+			memcpy(tmp, &serialized_buffer[block_state_len+keyword_state_len+keyword_counter_len+ii*TRAPDOOR_SIZE], TRAPDOOR_SIZE);
+			hashmap_key_class trapdoor(tmp,TRAPDOOR_SIZE);
+			curIdx = 0;
+			memcpy(&curIdx, &serialized_buffer[block_state_len+keyword_state_len+keyword_counter_len+hash_trapdoor_len+ii*sizeof(TYPE_INDEX)], sizeof(TYPE_INDEX));
+			rT_W[trapdoor] = curIdx;
+		}
+		
     }
     catch(exception &ex)
     {
@@ -728,7 +767,7 @@ int Client_DSSE::sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime)
         memcpy(buffer_out,&block_index,sizeof(block_index));
         socket.send(buffer_out,SOCKET_BUFFER_SIZE,ZMQ_SNDMORE);
         
-        // Send block data 
+        // Send block data Ozg-And encrypted counter array
         socket.send((unsigned char*)I_prime,serialized_buffer_len);
         socket.recv(buffer_in,SOCKET_BUFFER_SIZE);       
     }
@@ -772,11 +811,15 @@ int Client_DSSE::addFile(string filename, string path)
 
     TYPE_KEYWORD_DICTIONARY extracted_keywords;
     string adding_filename_with_path = path + filename;
-    TYPE_INDEX file_index;  
-    
+    TYPE_INDEX file_index, row;  
+    TYPE_GOOGLE_DENSE_HASH_MAP LT_W;
+	
     stringstream new_filename_with_path;
     string s;
-
+	
+	bool* keyword_state_arr = new bool[MATRIX_ROW_SIZE];
+	unsigned char* encrypted_keyword_counter_array = new unsigned char[BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE];
+	
 auto start = time_now;
 auto end = time_now;
 
@@ -784,7 +827,7 @@ auto end = time_now;
     {
         if(ready == false)
         {
-            printf("Encrypted index is not constructe yet, please build it first!\n");
+            printf("Encrypted index is not constructed yet, please build it first!\n");
             return 0;
         }
         printf("1. Determining block index...");
@@ -794,29 +837,36 @@ auto end = time_now;
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 		
-		printf("2. Getting state data from server...");
+		printf("2. Getting state and hash table data from server...");
 		start = time_now;
-		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr);
+		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr, keyword_state_arr, encrypted_keyword_counter_array, LT_W);
             
 		end = time_now;
 		cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+		
+		//Decrypt keyword counter array
+		dsse->decryptKeywordCounter(this->keyword_counter_arr, encrypted_keyword_counter_array, this->masterKey);
 		
         printf("3. Peforming AddToken...");
 start = time_now;
         extracted_keywords.clear();
 		
-		//T_W and keyword_counter_arr are at server now
-		//Get keyword_counter_arr (bool, serialize), increase them before generating the token, Get T_W and keyword_state_arr as well.
+		//Only re-send keyword_counter_arr back
+		
+		//Increase the keyword counters accordingly (based on keyword_state_arr)
+		for(row = 0; row<MATRIX_ROW_SIZE; row++){
+			if(keyword_state_arr[row]==0)
+				this->keyword_counter_arr[row] += 1;
+		}
 		
         dsse->addToken( adding_filename_with_path,           
                         this->I_prime,
                         file_index,
-                        this->T_F,this->T_W, extracted_keywords,
+                        this->T_F,LT_W, extracted_keywords,
                         this->keyword_counter_arr,this->block_counter_arr,this->block_state_arr,
                         this->lstFree_column_idx,this->lstFree_row_idx,
                         this->masterKey);
-        //increase the counter
-        this->block_counter_arr[block_index] += 1;
+        //this->block_counter_arr[block_index] += 1;
         
        
 end = time_now;
@@ -824,9 +874,10 @@ end = time_now;
 
         keywords_dictionary.insert(extracted_keywords.begin(),extracted_keywords.end());
         
-
+	
         printf("4. Send updated column/block to server...");
         start = time_now;
+		//Re-Encrypt keyword counter array and send
         this->sendBlock_data(block_index,this->I_prime);
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
@@ -839,8 +890,10 @@ end = time_now;
         exit(1);
     }    
     
+	memset(this->keyword_counter_arr, 0, MATRIX_ROW_SIZE);
+	delete encrypted_keyword_counter_array;
+	delete keyword_state_arr;
     extracted_keywords.clear();
-
     delete dsse;
     return 0;
 }
@@ -865,8 +918,12 @@ int Client_DSSE::delFile(string filename, string path)
     Miscellaneous misc;
     DSSE* dsse = new DSSE();
 
-    TYPE_INDEX block_index;
-    TYPE_INDEX file_index;        
+    TYPE_INDEX block_index, row;
+    TYPE_INDEX file_index;      
+    TYPE_GOOGLE_DENSE_HASH_MAP LT_W;
+
+	bool* keyword_state_arr = new bool[MATRIX_ROW_SIZE];
+	unsigned char* encrypted_keyword_counter_array = new unsigned char[BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE];
     
     string deleting_filename_with_path = path + filename;
     stringstream new_filename_with_path;
@@ -891,16 +948,24 @@ auto end = time_now;
         printf("1. Determining the block index...");
         start = time_now;
         dsse->requestBlock_index(deleting_filename_with_path,block_index,this->T_F,this->lstFree_column_idx,this->masterKey);
-        // THERE IS A PROBLEM WITH DELETING DB FILES!!!!!!!!
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 		
 		printf("2. Getting state data from server...");
 		start = time_now;
-		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr);
+		this->requestBlock_data(block_index, this->I_prime,this->block_state_arr, keyword_state_arr, encrypted_keyword_counter_array, LT_W);
             
 		end = time_now;
 		cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+		
+		//Decrypt keyword counter array
+		dsse->decryptKeywordCounter(this->keyword_counter_arr, encrypted_keyword_counter_array, this->masterKey);
+		
+		//Increase the keyword counters accordingly (based on keyword_state_arr)
+		for(row = 0; row<MATRIX_ROW_SIZE; row++){
+			if(keyword_state_arr[row]==0)
+				this->keyword_counter_arr[row] += 1;
+		}
 		
 		//T_W and keyword_counter_arr are at server now
         printf("3. Peforming DelToken...");
@@ -908,13 +973,13 @@ auto end = time_now;
         dsse->delToken( deleting_filename_with_path,                   
                         this->I_prime,                    
                         file_index,
-                        this->T_F,this->T_W,
+                        this->T_F,LT_W,
                         this->keyword_counter_arr,this->block_counter_arr,this->block_state_arr,
                         this->lstFree_column_idx,this->lstFree_row_idx,
                         this->masterKey);
          //increase the counter
-         cout<<"block index: "<<endl;
-        this->block_counter_arr[block_index] += 1;
+        // cout<<"block index: "<<endl;
+        //this->block_counter_arr[block_index] += 1;
    
 end = time_now;
 cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
@@ -931,11 +996,13 @@ cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<"
         printf("Error!!\n");
         exit(1);
     }
-
+	
+	memset(this->keyword_counter_arr, 0, MATRIX_ROW_SIZE);
     memset(buffer_in,0,SOCKET_BUFFER_SIZE) ;
     memset(buffer_out,0,SOCKET_BUFFER_SIZE);
     encrypted_filename.clear();
-
+	delete encrypted_keyword_counter_array;
+	delete keyword_state_arr;
     delete dsse;
     return 0;
 }

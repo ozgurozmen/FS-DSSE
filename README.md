@@ -1,10 +1,3 @@
-TODO:
-
-1 - Make changes to the update functions, such as re-newing the row keys for updated files (to do this, request the state matrix from the server and also initialize the state matrix with all 1s)
-2 - Encrypt/Decrypt the string D
-3 - Store the keyword hash table at the server side and request and get it in search
-4 - Optimize the data type for D (OPTIONAL)
-
 # Forward-private Sublinear DSSE (FS-DSSE)
 Basic implementation of FS-DSSE. The full paper is published in IEEE ICC 2018 and available at https://eprint.iacr.org/2017/1222.pdf. 
 

@@ -177,6 +177,7 @@ int Server_DSSE::loadState()
     Miscellaneous::read_array_from_file(FILENAME_SEARCH_INDEX_ARRAY,gcsSearchIndexFilepath,this->D,NUM_BLOCKS);
     printf("OK!\n");
 	
+	printf("   Loading hash Table...");
 	unsigned char empty_label[6] = "EMPTY";
     unsigned char delete_label[7] = "DELETE";
 	hashmap_key_class empty_key = hashmap_key_class(empty_label,6);
@@ -188,13 +189,13 @@ int Server_DSSE::loadState()
     T_W.set_deleted_key(delete_key);
 	
 	T_W.clear();
-	TYPE_COUNTER total_keywords_files[2];
+	
     Miscellaneous::read_array_from_file(FILENAME_TOTAL_KEYWORDS_FILES,gcsDataStructureFilepath,total_keywords_files,2);
 	
 	Miscellaneous::readHash_table(T_W,gcsKwHashTable,gcsDataStructureFilepath,total_keywords_files[0]);
 	
 	
-	
+	printf("  Loading counter array...");
 	Miscellaneous::read_encArray_from_file(FILENAME_ENCRYPTED_KEYWORD_COUNTER_ARRAY,gcsDataStructureFilepath,this->encrypted_keyword_counter_arr,MATRIX_ROW_SIZE*BLOCK_CIPHER_SIZE);
     printf("OK!\n");
 
@@ -286,7 +287,11 @@ int Server_DSSE::updateBlock_data(zmq::socket_t& socket)
     printf("4. Calling Update function...");
 
     start = time_now;
-    
+	for(TYPE_INDEX row = 0 ; row < MATRIX_ROW_SIZE; row++)
+    {
+		keyword_state_arr[row] = 1;
+    }
+//TODO:Update Hash Table in Server, according to the added keywords
 #if !defined(DISK_STORAGE_MODE)
     dsse->update(serialized_buffer,block_index,this->I,this->block_counter_arr,this->block_state_mat);
     
@@ -299,7 +304,7 @@ int Server_DSSE::updateBlock_data(zmq::socket_t& socket)
                     this->I_update,
                     NULL,NULL);
                     
-    this->block_counter_arr[block_index]+=1;
+//    this->block_counter_arr[block_index]+=1;
 
     int bit = (block_index) % BYTE_SIZE ;
     for(TYPE_INDEX row = 0 ; row < MATRIX_ROW_SIZE; row++)
@@ -339,18 +344,34 @@ int Server_DSSE::getBlock_data(zmq::socket_t & socket, int dim)
     unsigned char buffer_in[SOCKET_BUFFER_SIZE] = {'\0'};
     unsigned char buffer_out[SOCKET_BUFFER_SIZE] = {'\0'};
     
-    TYPE_INDEX block_index;
-    TYPE_INDEX serialized_buffer_len;
+    TYPE_INDEX block_index, curIdx;
+    TYPE_INDEX block_state_len, keyword_state_len,  hash_trapdoor_len, hash_index_len, keyword_counter_len, serialized_buffer_len;
+	
+	TYPE_GOOGLE_DENSE_HASH_MAP::iterator it;
+    TYPE_GOOGLE_DENSE_HASH_MAP::iterator it_end = T_W.end();
+	
 auto start = time_now;
 auto end = time_now;
-    if(dim == COL)
-        serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE+(MATRIX_ROW_SIZE/BYTE_SIZE);
+    if(dim == COL){
+        block_state_len = MATRIX_ROW_SIZE/BYTE_SIZE;
+		keyword_state_len = MATRIX_ROW_SIZE/BYTE_SIZE;
+		keyword_counter_len = BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE;
+		hash_trapdoor_len = TRAPDOOR_SIZE*total_keywords_files[0];
+		hash_index_len = sizeof(TYPE_INDEX)*total_keywords_files[0];
+		serialized_buffer_len = block_state_len + keyword_state_len + keyword_counter_len + hash_trapdoor_len + hash_index_len;		
+	}
     else
         serialized_buffer_len = MATRIX_COL_SIZE;
 
     MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len]; //consist of data and block state
     memset(serialized_buffer,0,serialized_buffer_len);
+ 
+//	unsigned char* serialized_buffer = new unsigned char[serialized_buffer_len]; //consist of data and block state
+//    memset(serialized_buffer,0,serialized_buffer_len);
     
+//	MatrixType* serialized_buffer2 = new MatrixType[serialized_buffer_len]; //consist of keyword state array
+//    memset(serialized_buffer2,0,serialized_buffer_len);
+	
     start = time_now;
     printf("1.  Receiving row/column index requested....");
     memset(buffer_in,0,SOCKET_BUFFER_SIZE);
@@ -381,7 +402,7 @@ auto end = time_now;
 //    end = time_now;
 //    cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 
-    printf("2.  Serializing...");    
+    printf("3.  Serializing...");    
     start = time_now;
     if(dim == COL)
     {
@@ -390,6 +411,7 @@ auto end = time_now;
         {
             state_col = ii / BYTE_SIZE;
             state_bit_position = ii % BYTE_SIZE;
+			//Serialize block_state_mat
     #if !defined(DISK_STORAGE_MODE)
             TYPE_INDEX col = block_index / BYTE_SIZE;
             int bit = block_index % BYTE_SIZE;
@@ -405,7 +427,22 @@ auto end = time_now;
             else
                 BIT_CLEAR(&serialized_buffer[state_col].byte_data,state_bit_position);
     #endif
+			//Serialize keyword_state_arr
+			if(keyword_state_arr[row] == 1)
+                BIT_SET(&serialized_buffer[state_col+block_state_len].byte_data,state_bit_position);
+            else
+                BIT_CLEAR(&serialized_buffer[state_col+block_state_len].byte_data,state_bit_position);
         }
+		
+		memcpy(&serialized_buffer[block_state_len+keyword_state_len], encrypted_keyword_counter_arr, keyword_counter_len);
+
+		for(it = T_W.begin(), ii = 0; it!=it_end; it++, ii++)
+		{
+			memcpy(&serialized_buffer[block_state_len+keyword_state_len+keyword_counter_len+ii*TRAPDOOR_SIZE], it->first.get_data(), TRAPDOOR_SIZE);
+			TYPE_INDEX curIdx = it->second;
+			memcpy(&serialized_buffer[block_state_len+keyword_state_len+keyword_counter_len+hash_trapdoor_len+ii*sizeof(TYPE_INDEX)], &curIdx,sizeof(TYPE_INDEX));
+		}
+		
     }
     end = time_now;
     cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
@@ -413,7 +450,7 @@ auto end = time_now;
     printf("4.  Sending data to client...");    
     
     start = time_now;
-    socket.send(serialized_buffer,serialized_buffer_len,0);
+    socket.send((unsigned char*)serialized_buffer,serialized_buffer_len,0);
     end = time_now;
     cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
 

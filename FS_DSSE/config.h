@@ -5,7 +5,7 @@
 #define INTEL_AES_NI                        // Intel AES-NI library
 
 #define ENCRYPT_BLOCK_SIZE 1
-//#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled)
+//#define DISK_STORAGE_MODE                 // Enable to store Encrypted index on HDD (RAM if disabled) ====NOT SUPPORTED NOW===
 //#define SEND_SEARCH_FILE_INDEX              // Search result contains specific file indexes
 
 #define PEER_ADDRESS "tcp://localhost:5555"

@@ -725,7 +725,7 @@ int DSSE::addToken(     string new_adding_file_with_path,
         block_index = file_index / ENCRYPT_BLOCK_SIZE;
         ii = (file_index % ENCRYPT_BLOCK_SIZE) / BYTE_SIZE; 
         bit_position = file_index % BYTE_SIZE;
-        TYPE_COUNTER next_counter = pBlockCounterArray[block_index] + 1;
+        TYPE_COUNTER next_counter = pBlockCounterArray[block_index];
         
        
 		for(row = 0 ; row < MATRIX_ROW_SIZE; row++)
@@ -841,7 +841,7 @@ int DSSE::delToken(string del_file_with_path,
         file_index = rT_F[hmap_file_trapdoor];
         block_index = file_index / ENCRYPT_BLOCK_SIZE;
 		
-        TYPE_COUNTER next_counter = pBlockCounterArray[block_index] + 1;
+        TYPE_COUNTER next_counter = pBlockCounterArray[block_index];
         
         /* Remove the file trapdoor entry from the file hashmap */
         lstFree_column_idx.push_back(file_index);
@@ -933,7 +933,7 @@ int DSSE::update(MatrixType* I_prime,
 		}
         /* Iset the counter of this block to+1, set the state of the block to 1.*/
         if(pBlockCounterArray!=NULL)
-            pBlockCounterArray[block_idx] += 1;
+            pBlockCounterArray[block_idx] = 1;
         if(pBlockStateMatrix !=NULL)
         {
             TYPE_INDEX col = block_idx/ BYTE_SIZE;
@@ -1463,7 +1463,7 @@ int DSSE::createEncrypted_matrix_from_kw_file_pair(vector<vector<TYPE_INDEX>> &k
 	
     for(row = 0 ; row < MATRIX_ROW_SIZE ; row++){
 		memcpy(counter_keyword,&row,sizeof(row));
-		memcpy(plaintext, &row_counter_arr[row], sizeof(row_counter_arr[row]));
+		memcpy(plaintext, &row_counter_arr[row], sizeof(TYPE_COUNTER));
 		aes128_ctr_encdec(plaintext, encrypted_keyword_counter_array+row*BLOCK_CIPHER_SIZE, pKey->key4, counter_keyword, ONE_VALUE);
 		memset(counter_keyword,0,BLOCK_CIPHER_SIZE);
 		memset(plaintext,0,BLOCK_CIPHER_SIZE);
@@ -1475,6 +1475,24 @@ int DSSE::createEncrypted_matrix_from_kw_file_pair(vector<vector<TYPE_INDEX>> &k
 	
     return 0;
 }
+
+
+int DSSE::decryptKeywordCounter(TYPE_COUNTER *row_counter_arr, unsigned char* encryptedRow, MasterKey *pKey){
+	TYPE_INDEX row;
+	unsigned char counter_keyword [BLOCK_CIPHER_SIZE] = {0};
+	unsigned char plaintext [BLOCK_CIPHER_SIZE] = {0};
+	
+	for(row = 0 ; row < MATRIX_ROW_SIZE ; row++){
+		memcpy(counter_keyword,&row,sizeof(row));
+		aes128_ctr_encdec(encryptedRow + row*BLOCK_CIPHER_SIZE, plaintext, pKey->key4, counter_keyword, ONE_VALUE);
+		memcpy(&row_counter_arr[row], plaintext, sizeof(TYPE_COUNTER));
+		memset(counter_keyword,0,BLOCK_CIPHER_SIZE);
+		memset(plaintext,0,BLOCK_CIPHER_SIZE);
+	}
+	
+	return 0;
+}
+
 
 /**
  * Function Name: loadEncrypted_matrix_from_files
