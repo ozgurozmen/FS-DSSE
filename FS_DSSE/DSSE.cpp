@@ -1493,6 +1493,23 @@ int DSSE::decryptKeywordCounter(TYPE_COUNTER *row_counter_arr, unsigned char* en
 	return 0;
 }
 
+int DSSE::reEncryptKeywordCounter(unsigned char* encryptedRow, TYPE_COUNTER *row_counter_arr, MasterKey *pKey){
+	TYPE_INDEX row;
+	unsigned char counter_keyword [BLOCK_CIPHER_SIZE] = {0};
+	unsigned char plaintext [BLOCK_CIPHER_SIZE] = {0};
+	memset(encryptedRow, 0, BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE);
+	
+    for(row = 0 ; row < MATRIX_ROW_SIZE ; row++){
+		memcpy(counter_keyword,&row,sizeof(row));
+		memcpy(plaintext, &row_counter_arr[row], sizeof(TYPE_COUNTER));
+		aes128_ctr_encdec(plaintext, encryptedRow+row*BLOCK_CIPHER_SIZE, pKey->key4, counter_keyword, ONE_VALUE);
+		memset(counter_keyword,0,BLOCK_CIPHER_SIZE);
+		memset(plaintext,0,BLOCK_CIPHER_SIZE);
+	}
+	
+	return 0;
+}
+
 
 /**
  * Function Name: loadEncrypted_matrix_from_files

@@ -738,7 +738,7 @@ int Client_DSSE::requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, 
 
 
 
-int Client_DSSE::sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime)
+int Client_DSSE::sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime, unsigned char *encryptedCounterArr)
  {
     int cmd;
     Miscellaneous misc;
@@ -751,7 +751,12 @@ int Client_DSSE::sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime)
     zmq::context_t context(1);
     zmq::socket_t socket(context,ZMQ_REQ);
     
-    TYPE_INDEX serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE;
+	TYPE_INDEX keyword_counter_len = BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE;
+	TYPE_INDEX Iprime_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE;
+    TYPE_INDEX serialized_buffer_len = Iprime_len + keyword_counter_len;
+	
+	MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len]; //consist of data and block state
+    memset(serialized_buffer,0,serialized_buffer_len);
     try
     {
         socket.connect(PEER_ADDRESS);
@@ -767,8 +772,10 @@ int Client_DSSE::sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime)
         memcpy(buffer_out,&block_index,sizeof(block_index));
         socket.send(buffer_out,SOCKET_BUFFER_SIZE,ZMQ_SNDMORE);
         
+		memcpy(serialized_buffer, I_prime, Iprime_len);
+		memcpy(&serialized_buffer[Iprime_len], encryptedCounterArr, keyword_counter_len);
         // Send block data Ozg-And encrypted counter array
-        socket.send((unsigned char*)I_prime,serialized_buffer_len);
+        socket.send((unsigned char*)serialized_buffer,serialized_buffer_len);
         socket.recv(buffer_in,SOCKET_BUFFER_SIZE);       
     }
     catch (exception &ex)
@@ -874,14 +881,15 @@ end = time_now;
 
         keywords_dictionary.insert(extracted_keywords.begin(),extracted_keywords.end());
         
-	
+		dsse->reEncryptKeywordCounter(encrypted_keyword_counter_array, this->keyword_counter_arr, this->masterKey);
+
         printf("4. Send updated column/block to server...");
         start = time_now;
 		//Re-Encrypt keyword counter array and send
-        this->sendBlock_data(block_index,this->I_prime);
+        this->sendBlock_data(block_index,this->I_prime,encrypted_keyword_counter_array);
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
-      
+		
   
     }
     catch(exception &ex)
@@ -984,10 +992,11 @@ auto end = time_now;
 end = time_now;
 cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
     
-    
+		dsse->reEncryptKeywordCounter(encrypted_keyword_counter_array, this->keyword_counter_arr, this->masterKey);
+
         printf("4. Send updated data to server...");
         start = time_now;
-        this->sendBlock_data(block_index,this->I_prime);
+        this->sendBlock_data(block_index,this->I_prime,encrypted_keyword_counter_array);
         end = time_now;
         cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
     }

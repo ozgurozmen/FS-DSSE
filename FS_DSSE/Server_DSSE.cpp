@@ -264,7 +264,10 @@ int Server_DSSE::updateBlock_data(zmq::socket_t& socket)
     TYPE_INDEX block_index;
     
     
-    TYPE_INDEX serialized_buffer_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE;
+    TYPE_INDEX keyword_counter_len = BLOCK_CIPHER_SIZE*MATRIX_ROW_SIZE;
+	TYPE_INDEX Iprime_len = (MATRIX_ROW_SIZE*ENCRYPT_BLOCK_SIZE)/BYTE_SIZE;
+    TYPE_INDEX serialized_buffer_len = Iprime_len + keyword_counter_len;
+	
     MatrixType* serialized_buffer = new MatrixType[serialized_buffer_len]; //consist of data 
    start = time_now; 
     printf("1.  Receiving block index....");
@@ -282,6 +285,9 @@ int Server_DSSE::updateBlock_data(zmq::socket_t& socket)
     socket.recv(serialized_buffer,serialized_buffer_len);
     end = time_now;
     cout<<std::chrono::duration_cast<std::chrono::nanoseconds>(end-start).count()<<" ns"<<endl;
+	
+	//Update encrypted counter array
+	memcpy(this->encrypted_keyword_counter_arr, serialized_buffer+Iprime_len, keyword_counter_len);
     
     // Update the received I' 
     printf("4. Calling Update function...");

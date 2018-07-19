@@ -152,7 +152,8 @@ public:
     int saveEncrypted_matrix_to_files(MatrixType** I, int dim, TYPE_INDEX idx);
 	
 	int decryptKeywordCounter(TYPE_COUNTER *row_counter_arr, unsigned char* encryptedRow, MasterKey *pKey);
-    
+    int reEncryptKeywordCounter(unsigned char* encryptedRow, TYPE_COUNTER *row_counter_arr, MasterKey *pKey);
+
     int loadEncrypted_matrix_from_files(MatrixType** I, int dim, TYPE_INDEX idx);
     int loadBlock_state_matrix_from_file(MatrixType** I, int dim, TYPE_INDEX idx);
     

@@ -70,7 +70,7 @@ public:
 
     int sendFile(string filename, string path, int SENDING_TYPE);  
 	int requestBlock_data(TYPE_INDEX block_index, MatrixType* I_prime, bool* block_state_arr, bool* keyword_state_arr, unsigned char* encrypted_keyword_counter_arr, TYPE_GOOGLE_DENSE_HASH_MAP &rT_W);
-	int sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime);
+	int sendBlock_data(TYPE_INDEX block_index, MatrixType *I_prime, unsigned char *encryptedCounterArr);
 
     
     static void* thread_precomputeAesKey_func(void* param);

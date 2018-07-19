@@ -1,44 +1,47 @@
-Debug/DSSE.cpp.o: /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE.cpp \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/MasterKey.h config.h \
- DSSE_Hashmap_Key_Class.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_MatrixType.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_SearchToken.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/config.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Keyword_Extraction.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Miscellaneous.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Trapdoor.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Crypto.h \
- /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_KeyGen.h \
+Debug/Client_DSSE.cpp.o: \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Client_DSSE.cpp \
  /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Client_DSSE.h MasterKey.h \
- struct_MatrixType.h
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/MasterKey.h:
-
-config.h:
-
-DSSE_Hashmap_Key_Class.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_MatrixType.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_SearchToken.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/config.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Keyword_Extraction.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Miscellaneous.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Trapdoor.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Crypto.h:
-
-/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_KeyGen.h:
+ config.h DSSE_Hashmap_Key_Class.h struct_MatrixType.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/config.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_KeyGen.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/MasterKey.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_MatrixType.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Trapdoor.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Miscellaneous.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_SearchToken.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/zmq.hpp \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_thread_precompute_aeskey.h \
+ /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_thread_getData.h
 
 /media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Client_DSSE.h:
 
 MasterKey.h:
 
+config.h:
+
+DSSE_Hashmap_Key_Class.h:
+
 struct_MatrixType.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/config.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_KeyGen.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/MasterKey.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_MatrixType.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE_Trapdoor.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/Miscellaneous.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/DSSE.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_SearchToken.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/zmq.hpp:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_thread_precompute_aeskey.h:
+
+/media/ozgur/Ubuntu/MyGit/FS-DSSE/FS_DSSE/struct_thread_getData.h:
